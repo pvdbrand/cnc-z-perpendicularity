@@ -41,7 +41,7 @@ Software:
    1. `boltHeadHeight` is the distance from the top of the bolt at `B` to the thin wire
    1. `maxBacklash` specifies the maximum measured backlashed allowed for a measurement to be included in the calculation of the end mill angle.
 
-How to run the script:
+Running the script:
 
 1. Position the end mill directly on top of the bolt at `B` (the Z probe needs to be triggered)
 1. Open [perpendicularity.py](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/perpendicularity.py) in the Spyder IDE and run it. Alternatively, run `python perpendicularity.py` from the command line
@@ -49,3 +49,17 @@ How to run the script:
 1. When prompted, rotate the end mill 180 degrees, and press Enter to continue. (You may need to detach and reattach the Z probe wire)
 1. Wait a bit more
 1. You'll now see the results. If enabled, you can also see backlash and end mill runout estimates.
+
+## Image of the probe in action
+
+![probing](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/probe-in-action.jpg)
+
+## How it works
+
+![angles](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/angles.svg)
+
+The script will touch off on the wire between two of the M3 bolts at various depths, and on both sides of the wire. This measures the angle of the end mill, which is composed of the angle of the spingle and the 'runout' angles shown in the image above. Then, you need to manually rotate the end mill 180 degrees, and the process is repeated. This will measure the angle of the rotated end mill.
+
+From touching off on both sides of the wire, a center line of the end mill can be computed. These are the black dashed lines inside the two end mill positions in the image above. 
+
+From these two center lines, a line is computed that is exactly in between the two. This line is equal to the spindle angle!
