@@ -17,6 +17,18 @@ Hardware:
    1. Make sure that when the end mill touches the wire between the bolts, the Z probe is triggered.
 1. Your end mill should have the same diameter from top to bottom. I used a small piece of aluminium tubing instead of an actual end mill. You may be able to put an end mill in upside down. Or maybe you can put a small metal tube over the cutting part of your end mill. It does not need to be perfectly straight.
 
+CNC Firmware:
+
+The script only uses gcode to communicate with your CNC router. Any firmware that supports the required gcodes should work. It has only been tested with Marlin so far.
+
+When using Marlin:
+
+1. The Z probe should be wired and configured to trigger the `z_min` endstop. (It was the only way I could get `G28 Z` and `G38` to work at the same time. If yours is triggered by `z_probe`, then change `z_min` to `z_probe` in the `isZProbeTriggered` function.)
+1. Enable `G38` in Marlin in `Conguration_adv.h`:
+   1. Uncomment `#define G38_PROBE_TARGET`
+   1. Uncomment `#define G38_PROBE_AWAY`
+   1. Recompile and upload Marlin to your CNC router
+
 Software:
 
 1. Install Python 2.7, pandas, matplotlib, statsmodels, and seaborn. (You can use [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) to make this easier).
@@ -32,7 +44,7 @@ Software:
 How to run the script:
 
 1. Position the end mill directly on top of the bolt at `B` (the Z probe needs to be triggered)
-1. Run `python perpendicularity.py`
+1. Open [perpendicularity.py](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/perpendicularity.py) in the Spyder IDE and run it. Alternatively, run `python perpendicularity.py` from the command line
 1. Wait a couple of minutes
 1. When prompted, rotate the end mill 180 degrees, and press Enter to continue. (You may need to detach and reattach the Z probe wire)
 1. Wait a bit more
