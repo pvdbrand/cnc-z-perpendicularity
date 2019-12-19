@@ -1,0 +1,22 @@
+[package]
+name = "simulator"
+version = "0.1.0"
+authors = ["peter"]
+edition = "2018"
+
+[dependencies]
+kiss3d = "*"
+nalgebra = "*"
+ncollide3d = "*"
+libc = "*"
+enum-map = "*"
+clap = "*"
+rayon = "*"
+
+[profile.dev]
+opt-level = 2
+
+[profile.release]
+codegen-units = 1
+lto = true
+debug = true
