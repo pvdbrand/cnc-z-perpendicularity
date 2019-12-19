@@ -71,6 +71,7 @@ where
         result
     }
 
+    #[allow(dead_code)]
     pub fn compute_self_collisions(&self, parameters: &Parameters<P>) -> Vec<(usize, usize)> {
         let start_poses = self.compute_all_start_poses(parameters);
         let mut result = Vec::new();
@@ -97,6 +98,7 @@ where
         result
     }
 
+    #[allow(dead_code)]
     pub fn forward_kinematics(&self, parameters: &Parameters<P>) -> Transform {
         let mut result = Transform::identity();
 
@@ -107,6 +109,7 @@ where
         result
     }
 
+    #[allow(dead_code)]
     pub fn inverse_kinematics(
         &self,
         parameters: &Parameters<P>,

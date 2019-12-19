@@ -56,7 +56,7 @@ pub fn update_parameter(parameters: &mut Parameters<Parameter>, param: Parameter
 }
 
 pub fn handle_events(window: &mut Window, parameters: &mut Parameters<Parameter>, keyboard_control: bool) {
-    let dpos = 0.01;
+    let dpos = 0.005;
     let dangle = 3.0_f32.to_radians();
 
     for event in window.events().iter() {
@@ -71,6 +71,25 @@ pub fn handle_events(window: &mut Window, parameters: &mut Parameters<Parameter>
                     Key::Z => update_parameter(parameters, Parameter::Z, -dpos),
                     Key::S => update_parameter(parameters, Parameter::Spindle, dangle),
                     Key::X => update_parameter(parameters, Parameter::Spindle, -dangle),
+
+                    Key::D => update_parameter(parameters, Parameter::ZAxisX, dangle),
+                    Key::C => update_parameter(parameters, Parameter::ZAxisX, -dangle),
+                    Key::F => update_parameter(parameters, Parameter::ZAxisY, dangle),
+                    Key::V => update_parameter(parameters, Parameter::ZAxisY, -dangle),
+
+                    Key::G => update_parameter(parameters, Parameter::SpindleX, dangle),
+                    Key::B => update_parameter(parameters, Parameter::SpindleX, -dangle),
+                    Key::H => update_parameter(parameters, Parameter::SpindleY, dangle),
+                    Key::N => update_parameter(parameters, Parameter::SpindleY, -dangle),
+
+                    Key::J => update_parameter(parameters, Parameter::EndmillX, dangle),
+                    Key::M => update_parameter(parameters, Parameter::EndmillX, -dangle),
+                    Key::K => update_parameter(parameters, Parameter::EndmillY, dangle),
+                    Key::Comma => update_parameter(parameters, Parameter::EndmillY, -dangle),
+
+                    Key::L => update_parameter(parameters, Parameter::EndmillOffset, dpos / 10.0),
+                    Key::Period => update_parameter(parameters, Parameter::EndmillOffset, -dpos / 10.0),
+
                     _ => {}
                 },
                 _ => {}

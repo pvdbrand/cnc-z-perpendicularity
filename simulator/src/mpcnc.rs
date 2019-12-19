@@ -5,7 +5,7 @@ use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
 use std::path::Path;
 use enum_map::{Enum, EnumMap};
-use na::{Point3, Translation3, UnitQuaternion};
+use na::{Point3};
 use ncollide3d::bounding_volume::bounding_volume::BoundingVolume;
 //use ncollide3d::shape::{Compound, Cuboid, ShapeHandle};
 
@@ -15,6 +15,14 @@ pub enum Parameter {
     Y,
     Z,
     Spindle,
+
+    ZAxisX,
+    ZAxisY,
+    SpindleX,
+    SpindleY,
+    EndmillX,
+    EndmillY,
+    EndmillOffset,
 }
 
 impl Bounds<Parameter> for Parameter {
@@ -22,14 +30,16 @@ impl Bounds<Parameter> for Parameter {
         match self {
             Parameter::X => new_value.max(0.0).min(1.0),
             Parameter::Y => new_value.max(0.0).min(0.5),
-            Parameter::Z => new_value.max(-0.1).min(0.1),
-            Parameter::Spindle => (new_value + std::f32::consts::PI * 2.0) % (std::f32::consts::PI * 2.0),
+            Parameter::Z => new_value.max(-0.045).min(0.0),
+            Parameter::EndmillOffset => new_value.max(0.0).min(0.01),
+            _ => (new_value + std::f32::consts::PI * 2.0) % (std::f32::consts::PI * 2.0),
         }
     }
 }
 
 pub struct MPCNC {
     frame: SceneNode,
+    spoilboard: SceneNode,
     x_tube: SceneNode,
     y_tube: SceneNode,
     z_axis: SceneNode,
@@ -42,65 +52,55 @@ impl MPCNC {
     pub fn new(window: &mut Window, resources_dir: &Path) -> MPCNC {
         let mm = na::Vector3::new(0.001, 0.001, 0.001);
 
-        let base_link = FixedLink::new(&Transform::translation(0.00, 0.00, 0.00), None);
+        let base_link = FixedLink::new(&Transform::translation(0.0, 0.0, 0.14), None);
         let x_link = SlidingLink::new(&Vec3::x_axis(), Parameter::X);
         let y_link = SlidingLink::new(&Vec3::y_axis(), Parameter::Y);
         let z_link = SlidingLink::new(&Vec3::z_axis(), Parameter::Z);
 
-        let z_axis_link = FixedLink::new(
-            &Transform::from_parts(
-                Translation3::new(0.0, 0.0, 0.0),
-                UnitQuaternion::from_axis_angle(&Vec3::x_axis(), 0.0_f32.to_radians()) * 
-                UnitQuaternion::from_axis_angle(&Vec3::y_axis(), 0.0_f32.to_radians()),
-            ),
-            None,
-        );
+        let z_axis_offset_link = FixedLink::new(&Transform::translation(-0.09, 0.09, 0.0), None);
+        let z_axis_x_link = RotatingLink::new(&Vec3::x_axis(), 0.0_f32.to_radians(), Parameter::ZAxisX);
+        let z_axis_y_link = RotatingLink::new(&Vec3::y_axis(), 0.0_f32.to_radians(), Parameter::ZAxisY);
+        let z_axis_offset_inv_link = FixedLink::new(&Transform::translation(0.09, -0.09, -0.05), None);
 
-        let spindle_link = FixedLink::new(
-            &Transform::from_parts(
-                Translation3::new(0.09, -0.09, 0.0),
-                UnitQuaternion::from_axis_angle(&Vec3::x_axis(), 0.0_f32.to_radians()) * 
-                UnitQuaternion::from_axis_angle(&Vec3::y_axis(), 0.0_f32.to_radians()),
-            ),
-            None,
-        );
+        let spindle_offset_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.015 + 0.185 / 2.0), None);
+        let spindle_x_link = RotatingLink::new(&Vec3::x_axis(), 0.0_f32.to_radians(), Parameter::SpindleX);
+        let spindle_y_link = RotatingLink::new(&Vec3::y_axis(), 0.0_f32.to_radians(), Parameter::SpindleY);
+        let spindle_rotation_link = RotatingLink::new(&Vec3::z_axis(), 0.0_f32.to_radians(), Parameter::Spindle);
+        let spindle_offset_inv_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.185 / 2.0), None);
 
-        let rotation_link = RotatingLink::new(&Vec3::z_axis(), 0.0_f32.to_radians(), Parameter::Spindle);
-
-        let endmill_link = FixedLink::new(
-            &Transform::from_parts(
-                Translation3::new(0.0, 0.0, 0.0),
-                UnitQuaternion::from_axis_angle(&Vec3::x_axis(), 0.0_f32.to_radians()) * 
-                UnitQuaternion::from_axis_angle(&Vec3::y_axis(), 0.0_f32.to_radians()),
-            ),
-            None,
-        );
-
-        let endmill_tip_link = FixedLink::new(
-            &Transform::from_parts(
-                Translation3::new(0.0, 0.0, -0.035),
-                UnitQuaternion::identity(),
-            ),
-            None,
-        );
+        let endmill_offset_link = SlidingLink::new(&Vec3::x_axis(), Parameter::EndmillOffset);
+        let endmill_x_link = RotatingLink::new(&Vec3::x_axis(), 0.0_f32.to_radians(), Parameter::EndmillX);
+        let endmill_y_link = RotatingLink::new(&Vec3::y_axis(), 0.0_f32.to_radians(), Parameter::EndmillY);
+        let endmill_tip_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.03), None);
+        let end_effector_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.045), None);
 
         let chain = Chain::new(
             vec![
                 Box::new(base_link),
                 Box::new(x_link),
                 Box::new(y_link),
-                Box::new(z_axis_link),
+                Box::new(z_axis_offset_link),
+                Box::new(z_axis_x_link),
+                Box::new(z_axis_y_link),
                 Box::new(z_link),
-                Box::new(spindle_link),
-                Box::new(rotation_link),
-                Box::new(endmill_link),
+                Box::new(z_axis_offset_inv_link),
+                Box::new(spindle_offset_link),
+                Box::new(spindle_x_link),
+                Box::new(spindle_y_link),
+                Box::new(spindle_rotation_link),
+                Box::new(spindle_offset_inv_link),
+                Box::new(endmill_offset_link),
+                Box::new(endmill_x_link),
+                Box::new(endmill_y_link),
                 Box::new(endmill_tip_link),
+                Box::new(end_effector_link),
             ],
             vec![], //(0, 4), (6, 7), (9, 10), (12, 13)],
         );
 
         let mut mpcnc = MPCNC {
-            frame: window.add_obj(&resources_dir.join("base.obj"), resources_dir, mm),
+            frame: window.add_obj(&resources_dir.join("frame.obj"), resources_dir, mm),
+            spoilboard: window.add_obj(&resources_dir.join("spoilboard.obj"), resources_dir, mm),
             x_tube: window.add_obj(&resources_dir.join("gantry-x-tube.obj"), resources_dir, mm),
             y_tube: window.add_obj(&resources_dir.join("gantry-y-tube.obj"), resources_dir, mm),
             z_axis: window.add_obj(&resources_dir.join("z-axis.obj"), resources_dir, mm),
@@ -110,6 +110,7 @@ impl MPCNC {
         };
 
         mpcnc.frame.set_color(1.0, 1.0, 0.0);
+        mpcnc.spoilboard.set_color(1.0, 1.0, 1.0);
         mpcnc.x_tube.set_color(1.0, 1.0, 0.0);
         mpcnc.y_tube.set_color(1.0, 1.0, 0.0);
         mpcnc.z_axis.set_color(0.0, 0.0, 1.0);
@@ -126,16 +127,15 @@ impl MPCNC {
         &self.chain
     }
 
-    pub fn get_endmill_tip(&self, parameters: &Parameters<Parameter>) -> Vec3 {
+    pub fn get_end_effector_pos(&self, parameters: &Parameters<Parameter>) -> Vec3 {
         let end_poses = self.chain.compute_all_end_poses(parameters);
-        end_poses[8].translation.vector
+        end_poses[end_poses.len() - 1].translation.vector
     }
-
 
     pub fn get_default_parameters(&self) -> Parameters<Parameter> {
         let mut params = EnumMap::new();
 
-        params[Parameter::X] = 0.5;
+        params[Parameter::X] = 0.50;
         params[Parameter::Y] = 0.25;
         params
     }
@@ -159,7 +159,6 @@ impl MPCNC {
         }
 
         let start_poses = self.chain.compute_all_start_poses(parameters);
-        let end_poses = self.chain.compute_all_end_poses(parameters);
 
         self.set_visible(true);
 
@@ -174,11 +173,12 @@ impl MPCNC {
             }
         }
 
-        self.frame.set_local_transformation(end_poses[0]);
-        self.x_tube.set_local_transformation(end_poses[1]);
-        self.y_tube.set_local_transformation(end_poses[2] * Transform::translation(-end_poses[2].translation.x, 0.0, 0.0));
-        self.z_axis.set_local_transformation(end_poses[4]);
-        self.spindle.set_local_transformation(end_poses[5]);
-        self.endmill.set_local_transformation(end_poses[7]);
+        self.frame.set_local_transformation(start_poses[0]);
+        self.spoilboard.set_local_transformation(start_poses[0]);
+        self.x_tube.set_local_transformation(start_poses[2]);
+        self.y_tube.set_local_transformation(start_poses[3] * Transform::translation(-start_poses[3].translation.x, 0.0, 0.0));
+        self.z_axis.set_local_transformation(start_poses[8]);
+        self.spindle.set_local_transformation(start_poses[13]);
+        self.endmill.set_local_transformation(start_poses[17]);
     }
 }

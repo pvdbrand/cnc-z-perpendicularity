@@ -48,17 +48,23 @@ fn simulator(manual_control: bool) {
 
         cnc.render(&mut window, &parameters, true, true);
 
-        let fps = 1.0 / (now.elapsed().as_nanos() as f64 / 1e9_f64);
-        now = Instant::now();
-        window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 0.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
-
-        let endmill_tip = cnc.get_endmill_tip(&parameters);
+        let endmill_tip = cnc.get_end_effector_pos(&parameters);
         window.draw_text(&format!("Steppers: X = {:7.3}mm, Y = {:7.3}mm, Z = {:7.3}mm, spindle angle = {:5.1} degrees", 
                 parameters[Parameter::X] * 1000.0, parameters[Parameter::Y] * 1000.0, parameters[Parameter::Z] * 1000.0,
                 parameters[Parameter::Spindle].to_degrees()),
-            &Point2::new(0.0, 30.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
+            &Point2::new(0.0, 0.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
         window.draw_text(&format!("End mill: X = {:7.3}mm, Y = {:7.3}mm, Z = {:7.3}mm", 
-            endmill_tip.x * 1000.0, endmill_tip.y * 1000.0, endmill_tip.z * 1000.0),
-        &Point2::new(0.0, 60.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
-}
+                endmill_tip.x * 1000.0, endmill_tip.y * 1000.0, endmill_tip.z * 1000.0),
+            &Point2::new(0.0, 30.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
+        window.draw_text(&format!("Difference: X = {:7.3}mm, Y = {:7.3}mm, Z = {:7.3}mm", 
+                (endmill_tip.x - parameters[Parameter::X]) * 1000.0, 
+                (endmill_tip.y - parameters[Parameter::Y]) * 1000.0, 
+                (endmill_tip.z - parameters[Parameter::Z]) * 1000.0),
+            &Point2::new(0.0, 60.0), 30.0, &font, &Point3::new(1.0, 0.5, 0.5));
+
+        let fps = 1.0 / (now.elapsed().as_nanos() as f64 / 1e9_f64);
+        now = Instant::now();
+        window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 90.0), 30.0, &font, &Point3::new(0.5, 0.5, 0.5));
+
+    }
 }
