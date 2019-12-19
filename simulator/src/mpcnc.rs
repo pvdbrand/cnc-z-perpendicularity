@@ -72,7 +72,7 @@ impl MPCNC {
         let endmill_x_link = RotatingLink::new(&Vec3::x_axis(), 0.0_f32.to_radians(), Parameter::EndmillX);
         let endmill_y_link = RotatingLink::new(&Vec3::y_axis(), 0.0_f32.to_radians(), Parameter::EndmillY);
         let endmill_tip_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.03), None);
-        let end_effector_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.045), None);
+        let end_effector_link = FixedLink::new(&Transform::translation(0.0, 0.0, 0.0), None);
 
         let chain = Chain::new(
             vec![
@@ -115,7 +115,7 @@ impl MPCNC {
         mpcnc.y_tube.set_color(1.0, 1.0, 0.0);
         mpcnc.z_axis.set_color(0.0, 0.0, 1.0);
         mpcnc.spindle.set_color(0.0, 1.0, 0.0);
-        mpcnc.endmill.set_color(1.0, 1.0, 1.0);
+        mpcnc.endmill.set_color(1.0, 0.0, 1.0);
 
         mpcnc.set_visible(false);
         
@@ -127,9 +127,9 @@ impl MPCNC {
         &self.chain
     }
 
-    pub fn get_end_effector_pos(&self, parameters: &Parameters<Parameter>) -> Vec3 {
+    pub fn get_end_effector_pos(&self, parameters: &Parameters<Parameter>) -> Transform {
         let end_poses = self.chain.compute_all_end_poses(parameters);
-        end_poses[end_poses.len() - 1].translation.vector
+        end_poses[end_poses.len() - 1]
     }
 
     pub fn get_default_parameters(&self) -> Parameters<Parameter> {

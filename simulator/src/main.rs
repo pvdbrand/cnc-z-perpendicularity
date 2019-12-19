@@ -3,6 +3,7 @@ extern crate nalgebra as na;
 mod chain;
 mod gui;
 mod mpcnc;
+mod calibration_object;
 
 use crate::mpcnc::{Parameter};
 
@@ -38,33 +39,36 @@ fn simulator(manual_control: bool) {
     let mut camera = ArcBall::new(eye, at);
 
     let mut cnc = mpcnc::MPCNC::new(&mut window, &resources_dir);
+    let mut calibration_object = calibration_object::CalibrationObject::new(&mut window, &resources_dir);
     let mut parameters = cnc.get_default_parameters();
 
     window.set_light(Light::StickToCamera);
 
     while window.render_with_camera(&mut camera) {
         gui::handle_events(&mut window, &mut parameters, manual_control);
-        gui::draw_transform(&mut window, &chain::Transform::identity(), 1.0);
-
-        cnc.render(&mut window, &parameters, true, true);
-
+        
         let endmill_tip = cnc.get_end_effector_pos(&parameters);
+        
+        gui::draw_transform(&mut window, &chain::Transform::identity(), 1.0);
+        gui::draw_transform(&mut window, &endmill_tip, 0.1);
+        cnc.render(&mut window, &parameters, false, true);
+        calibration_object.render(&mut window, true);
+
         window.draw_text(&format!("Steppers: X = {:7.3}mm, Y = {:7.3}mm, Z = {:7.3}mm, spindle angle = {:5.1} degrees", 
                 parameters[Parameter::X] * 1000.0, parameters[Parameter::Y] * 1000.0, parameters[Parameter::Z] * 1000.0,
                 parameters[Parameter::Spindle].to_degrees()),
             &Point2::new(0.0, 0.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
         window.draw_text(&format!("End mill: X = {:7.3}mm, Y = {:7.3}mm, Z = {:7.3}mm", 
-                endmill_tip.x * 1000.0, endmill_tip.y * 1000.0, endmill_tip.z * 1000.0),
+                endmill_tip.translation.x * 1000.0, endmill_tip.translation.y * 1000.0, endmill_tip.translation.z * 1000.0),
             &Point2::new(0.0, 30.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
         window.draw_text(&format!("Difference: X = {:7.3}mm, Y = {:7.3}mm, Z = {:7.3}mm", 
-                (endmill_tip.x - parameters[Parameter::X]) * 1000.0, 
-                (endmill_tip.y - parameters[Parameter::Y]) * 1000.0, 
-                (endmill_tip.z - parameters[Parameter::Z]) * 1000.0),
+                (endmill_tip.translation.x - parameters[Parameter::X]) * 1000.0, 
+                (endmill_tip.translation.y - parameters[Parameter::Y]) * 1000.0, 
+                (endmill_tip.translation.z - parameters[Parameter::Z]) * 1000.0),
             &Point2::new(0.0, 60.0), 30.0, &font, &Point3::new(1.0, 0.5, 0.5));
 
         let fps = 1.0 / (now.elapsed().as_nanos() as f64 / 1e9_f64);
         now = Instant::now();
         window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 90.0), 30.0, &font, &Point3::new(0.5, 0.5, 0.5));
-
     }
 }
