@@ -16,6 +16,7 @@ pub fn draw_transform(window: &mut Window, transform: &Transform, size: f32) {
     window.draw_line(&origin, &z, &Point3::new(0.0, 0.0, 1.0));
 }
 
+#[allow(dead_code)]
 pub fn draw_aabb(window: &mut Window, aabb: &AABB<f32>, color: &Point3<f32>) {
     let mins = aabb.mins();
     let maxs = aabb.maxs();

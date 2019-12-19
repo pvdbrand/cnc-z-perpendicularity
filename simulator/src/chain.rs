@@ -3,9 +3,6 @@ use std::vec::Vec;
 use enum_map::{Enum, EnumMap};
 use na::geometry::UnitQuaternion;
 use na::{Dynamic, Isometry3, MatrixMN, Unit, Vector3, VectorN, U7};
-use ncollide3d::shape::Shape;
-use std::collections::HashSet;
-use std::iter::FromIterator;
 
 pub type Transform = Isometry3<f32>;
 pub type Vec3 = Vector3<f32>;
@@ -18,12 +15,10 @@ pub trait Bounds<P> {
 
 pub trait Link<P: Enum<f32>> {
     fn get_local_transform(&self, parameters: &Parameters<P>) -> Transform;
-    fn get_collision_shape(&self) -> &Option<Box<dyn Shape<f32>>>;
 }
 
 pub struct Chain<P> {
     links: Vec<Box<dyn Link<P>>>,
-    ignore_collision_link_indices: HashSet<(usize, usize)>,
 }
 
 impl<P> Chain<P>
@@ -31,14 +26,8 @@ where
     P: Enum<f32> + Copy + Bounds<P>,
     <P as Enum<f32>>::Array: Clone,
 {
-    pub fn new<T>(links: Vec<Box<dyn Link<P>>>, ignore_collision_link_indices: T) -> Self
-    where
-        T: IntoIterator<Item = (usize, usize)>,
-    {
-        Chain {
-            links,
-            ignore_collision_link_indices: HashSet::from_iter(ignore_collision_link_indices),
-        }
+    pub fn new(links: Vec<Box<dyn Link<P>>>) -> Self {
+        Chain { links }
     }
 
     pub fn compute_all_end_poses(&self, parameters: &Parameters<P>) -> Vec<Transform> {
@@ -54,6 +43,7 @@ where
         result
     }
 
+    #[allow(dead_code)]
     pub fn get_links(&self) -> &Vec<Box<dyn Link<P>>> {
         &self.links
     }
@@ -71,32 +61,32 @@ where
         result
     }
 
-    #[allow(dead_code)]
-    pub fn compute_self_collisions(&self, parameters: &Parameters<P>) -> Vec<(usize, usize)> {
-        let start_poses = self.compute_all_start_poses(parameters);
-        let mut result = Vec::new();
+    // #[allow(dead_code)]
+    // pub fn compute_self_collisions(&self, parameters: &Parameters<P>) -> Vec<(usize, usize)> {
+    //     let start_poses = self.compute_all_start_poses(parameters);
+    //     let mut result = Vec::new();
 
-        for i in 0..self.links.len() {
-            if let Some(shape_i) = self.links[i].get_collision_shape() {
-                let pose_i = &start_poses[i];
+    //     for i in 0..self.links.len() {
+    //         if let Some(shape_i) = self.links[i].get_collision_shape() {
+    //             let pose_i = &start_poses[i];
 
-                for j in i + 1..self.links.len() {
-                    if !self.ignore_collision_link_indices.contains(&(i, j)) && !self.ignore_collision_link_indices.contains(&(j, i)) {
-                        if let Some(shape_j) = self.links[j].get_collision_shape() {
-                            let pose_j = &start_poses[j];
-                            let d = ncollide3d::query::distance(pose_i, &**shape_i, pose_j, &**shape_j);
+    //             for j in i + 1..self.links.len() {
+    //                 if !self.ignore_collision_link_indices.contains(&(i, j)) && !self.ignore_collision_link_indices.contains(&(j, i)) {
+    //                     if let Some(shape_j) = self.links[j].get_collision_shape() {
+    //                         let pose_j = &start_poses[j];
+    //                         let d = ncollide3d::query::distance(pose_i, &**shape_i, pose_j, &**shape_j);
 
-                            if d == 0.0 {
-                                result.push((i, j));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    //                         if d == 0.0 {
+    //                             result.push((i, j));
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        result
-    }
+    //     result
+    // }
 
     #[allow(dead_code)]
     pub fn forward_kinematics(&self, parameters: &Parameters<P>) -> Transform {
@@ -199,14 +189,12 @@ fn transform_difference(a: &Transform, b: &Transform) -> TransformDifference {
 
 pub struct FixedLink {
     transform: Transform,
-    collision_shape: Option<Box<dyn Shape<f32>>>,
 }
 
 impl FixedLink {
-    pub fn new(transform: &Transform, collision_shape: Option<Box<dyn Shape<f32>>>) -> Self {
+    pub fn new(transform: &Transform) -> Self {
         FixedLink {
             transform: *transform,
-            collision_shape: collision_shape,
         }
     }
 }
@@ -214,10 +202,6 @@ impl FixedLink {
 impl<P: Enum<f32>> Link<P> for FixedLink {
     fn get_local_transform(&self, _parameters: &Parameters<P>) -> Transform {
         self.transform
-    }
-
-    fn get_collision_shape(&self) -> &Option<Box<dyn Shape<f32>>> {
-        &self.collision_shape
     }
 }
 
@@ -239,10 +223,6 @@ impl<P: Enum<f32> + Copy> Link<P> for SlidingLink<P> {
         let param = parameters[self.parameter];
 
         Transform::translation(self.axis[0] * param, self.axis[1] * param, self.axis[2] * param)
-    }
-
-    fn get_collision_shape(&self) -> &Option<Box<dyn Shape<f32>>> {
-        &None
     }
 }
 
@@ -267,9 +247,5 @@ impl<P: Enum<f32> + Copy> RotatingLink<P> {
 impl<P: Enum<f32> + Copy> Link<P> for RotatingLink<P> {
     fn get_local_transform(&self, parameters: &Parameters<P>) -> Transform {
         Transform::identity() * UnitQuaternion::from_axis_angle(&self.axis, parameters[self.parameter] + self.center_angle)
-    }
-
-    fn get_collision_shape(&self) -> &Option<Box<dyn Shape<f32>>> {
-        &None
     }
 }

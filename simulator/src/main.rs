@@ -5,6 +5,7 @@ mod gui;
 mod mpcnc;
 mod calibration_object;
 
+use crate::chain::{Transform};
 use crate::mpcnc::{Parameter};
 
 use kiss3d::camera::ArcBall;
@@ -51,8 +52,15 @@ fn simulator(manual_control: bool) {
         
         gui::draw_transform(&mut window, &chain::Transform::identity(), 1.0);
         gui::draw_transform(&mut window, &endmill_tip, 0.1);
-        cnc.render(&mut window, &parameters, false, true);
-        calibration_object.render(&mut window, true);
+        cnc.render(&mut window, &parameters, false);
+        calibration_object.render();
+
+        let cnc_probe = &cnc.get_probe_collision_shape(&parameters);
+        let cal_probe = &calibration_object.get_probe_collision_shape();
+
+        gui::draw_aabb(&mut window, &cnc_probe.aabb(&Transform::identity()), &Point3::new(1.0, 1.0, 1.0));
+        gui::draw_aabb(&mut window, &cal_probe.aabb(&Transform::identity()), &Point3::new(1.0, 1.0, 1.0));
+
 
         window.draw_text(&format!("Steppers: X = {:7.3}mm, Y = {:7.3}mm, Z = {:7.3}mm, spindle angle = {:5.1} degrees", 
                 parameters[Parameter::X] * 1000.0, parameters[Parameter::Y] * 1000.0, parameters[Parameter::Z] * 1000.0,
@@ -67,8 +75,11 @@ fn simulator(manual_control: bool) {
                 (endmill_tip.translation.z - parameters[Parameter::Z]) * 1000.0),
             &Point2::new(0.0, 60.0), 30.0, &font, &Point3::new(1.0, 0.5, 0.5));
 
+        let triggered = ncollide3d::query::proximity(&Transform::identity(), &**cnc_probe, &Transform::identity(), &**cal_probe, 0.0) == ncollide3d::query::Proximity::Intersecting;
+        window.draw_text(if triggered { "Z probe: TRIGGERED" } else { "Z probe: open" }, &Point2::new(0.0, 90.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
+
         let fps = 1.0 / (now.elapsed().as_nanos() as f64 / 1e9_f64);
         now = Instant::now();
-        window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 90.0), 30.0, &font, &Point3::new(0.5, 0.5, 0.5));
+        window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 120.0), 30.0, &font, &Point3::new(0.5, 0.5, 0.5));
     }
 }

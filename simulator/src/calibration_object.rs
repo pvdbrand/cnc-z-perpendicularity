@@ -1,10 +1,10 @@
-use crate::chain::{Transform};
+use crate::chain::{Transform, Vec3};
 
 use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
 use std::path::Path;
-//use ncollide3d::bounding_volume::bounding_volume::BoundingVolume;
-//use ncollide3d::shape::{Compound, Cuboid, ShapeHandle};
+use ncollide3d::shape::{Shape, Compound, ShapeHandle, Capsule};
+use na::{Translation3, UnitQuaternion};
 
 pub struct CalibrationObject {
     plastic: SceneNode,
@@ -26,7 +26,29 @@ impl CalibrationObject {
         object
     }
 
-    pub fn render(&mut self, _window: &mut Window, _show_collision_bbox: bool) {
+    pub fn get_probe_collision_shape(&self) -> Box<dyn Shape<f32>> {
+        let length = 0.04;
+        let radius = 0.08 / 1000.0 / 2.0;
+
+        let along_y = Transform::from_parts(
+            Translation3::new(-0.0215, -0.010 + length / 2.0, 0.036), 
+            UnitQuaternion::identity()
+        );
+        let along_x = Transform::from_parts(
+            Translation3::new(-0.020 + length / 2.0, -0.0115, 0.036), 
+            UnitQuaternion::from_axis_angle(&Vec3::z_axis(), 270.0_f32.to_radians())
+        );
+
+        Box::new(Compound::new(vec![(
+            Transform::translation(0.52, 0.26, 0.0) * along_y,
+            ShapeHandle::new(Capsule::new(length / 2.0 - radius, radius)),
+        ), (
+            Transform::translation(0.52, 0.26, 0.0) * along_x,
+            ShapeHandle::new(Capsule::new(length / 2.0 - radius, radius)),
+        )]))
+    }
+
+    pub fn render(&mut self) {
         let pos = Transform::translation(0.52, 0.26, 0.0);
 
         self.plastic.set_local_transformation(pos);
