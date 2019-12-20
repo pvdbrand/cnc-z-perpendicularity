@@ -23,7 +23,7 @@ use clap::{App, Arg};
 use std::io;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
-use std::sync::mpsc::TryRecvError;
+use std::sync::mpsc::RecvTimeoutError;
 use std::thread;
 
 fn main() {
@@ -102,11 +102,16 @@ fn simulator(manual_control: bool) {
 }
 
 fn handle_gcode(stdin_channel: &Receiver<String>, gcode: &mut GCode, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) -> bool {
+    let mut timeout = std::time::Duration::from_millis(1);
+
     loop {
-        match stdin_channel.try_recv() {
-            Ok(line) => gcode.parse(line, parameters, cnc, calibration_object),
-            Err(TryRecvError::Empty) => return true,
-            Err(TryRecvError::Disconnected) => return false,
+        match stdin_channel.recv_timeout(timeout) {
+            Ok(line) => {
+                gcode.parse(line, parameters, cnc, calibration_object);
+                timeout = std::time::Duration::from_millis(500);
+            },
+            Err(RecvTimeoutError::Timeout) => return true,
+            Err(RecvTimeoutError::Disconnected) => return false,
         }
     }
 }
