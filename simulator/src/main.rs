@@ -33,12 +33,16 @@ fn main() {
             .long("no-keyboard")
             .short("k")
             .help("disable keyboard controls"))
+        .arg(Arg::with_name("fast")
+            .long("fast")
+            .short("f")
+            .help("process gcode as fast as possible without updating the GUI between lines"))
         .get_matches();
 
-    simulator(!matches.is_present("no-keyboard"));
+    simulator(!matches.is_present("no-keyboard"), matches.is_present("fast"));
 }
 
-fn simulator(manual_control: bool) {
+fn simulator(manual_control: bool, fast: bool) {
     let resources_dir = Path::new("resources");
     let font = Font::default();
     let mut now = Instant::now();
@@ -58,7 +62,7 @@ fn simulator(manual_control: bool) {
 
     while window.render_with_camera(&mut camera) {
         gui::handle_events(&mut window, &mut parameters, manual_control);
-        handle_gcode(&stdin_channel, &mut gcode, &mut parameters, &cnc, &calibration_object);
+        handle_gcode(&stdin_channel, &mut gcode, &mut parameters, &cnc, &calibration_object, fast);
 
         let endmill_tip = cnc.get_end_effector_pos(&parameters);
         
@@ -101,14 +105,16 @@ fn simulator(manual_control: bool) {
     }
 }
 
-fn handle_gcode(stdin_channel: &Receiver<String>, gcode: &mut GCode, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) -> bool {
-    let mut timeout = std::time::Duration::from_millis(1);
+fn handle_gcode(stdin_channel: &Receiver<String>, gcode: &mut GCode, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject, fast: bool) -> bool {
+    let mut timeout = std::time::Duration::from_millis(0);
 
     loop {
         match stdin_channel.recv_timeout(timeout) {
             Ok(line) => {
                 gcode.parse(line, parameters, cnc, calibration_object);
-                timeout = std::time::Duration::from_millis(500);
+                if fast {
+                    timeout = std::time::Duration::from_millis(500);
+                }
             },
             Err(RecvTimeoutError::Timeout) => return true,
             Err(RecvTimeoutError::Disconnected) => return false,

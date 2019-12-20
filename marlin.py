@@ -11,7 +11,10 @@ class Marlin:
         
     def connect(self, port, baudrate, timeoutSeconds=30, waitSeconds=8):
         if self.simulator is not None:
-            self.conn = subprocess.Popen([self.simulator['executable'], "--no-keyboard"],
+            command = [self.simulator['executable'], "--no-keyboard"]
+            if self.simulator['fast']:
+                command += ["--fast"]
+            self.conn = subprocess.Popen(command,
                             cwd=self.simulator['working_directory'],
                             stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE)
@@ -33,6 +36,7 @@ class Marlin:
         if self.simulator is not None:
             self.conn.stdin.close()
             self.conn.stdout.close()
+            self.conn.kill()
         else:
             self.conn.close()
         self.conn = None

@@ -20,6 +20,16 @@ impl GCode {
         let line = line.trim();
         
         let fields = line.split(" ").collect::<Vec<&str>>();
+        let a = self.parse_field(&fields, "A");
+        let b = self.parse_field(&fields, "B");
+        let o = self.parse_field(&fields, "O");
+        let r = self.parse_field(&fields, "R");
+
+        let a = if let Some(Some(a)) = a { a } else { 0.0 };
+        let b = if let Some(Some(b)) = b { b } else { 0.0 };
+        let o = if let Some(Some(o)) = o { o } else { 0.0 };
+        let r = if let Some(Some(r)) = r { r } else { 0.0 };
+
         let x = self.parse_field(&fields, "X");
         let y = self.parse_field(&fields, "Y");
         let z = self.parse_field(&fields, "Z");
@@ -40,6 +50,10 @@ impl GCode {
             "G92" => self.set_position(x, y, z, parameters),
             "M114" => self.get_position(parameters),
             "M119" => self.endstops(parameters, cnc, calibration_object),
+
+            "M800" => self.set_z_axis(a, b, parameters),
+            "M801" => self.set_spindle(a, b, r, parameters),
+            "M802" => self.set_endmill(a, b, o, parameters),
 
             "G90" => self.ok(),
             "M17" => self.ok(),
@@ -76,6 +90,26 @@ impl GCode {
         self.ok();
     }
 
+    fn set_z_axis(&mut self, x: f64, y: f64, parameters: &mut Parameters<Parameter>) {
+        parameters[Parameter::ZAxisX] = x.to_radians();
+        parameters[Parameter::ZAxisY] = y.to_radians();
+        self.ok();
+    }
+
+    fn set_spindle(&mut self, x: f64, y: f64, rotation: f64, parameters: &mut Parameters<Parameter>) {
+        parameters[Parameter::SpindleX] = x.to_radians();
+        parameters[Parameter::SpindleY] = y.to_radians();
+        parameters[Parameter::Spindle] = rotation.to_radians();
+        self.ok();
+    }
+
+    fn set_endmill(&mut self, x: f64, y: f64, offset: f64, parameters: &mut Parameters<Parameter>) {
+        parameters[Parameter::EndmillX] = x.to_radians();
+        parameters[Parameter::EndmillY] = y.to_radians();
+        parameters[Parameter::EndmillOffset] = offset / 1000.0;
+        self.ok();
+    }
+
     fn get_position(&self, parameters: &mut Parameters<Parameter>) {
         let pos = self.get_workspace_position(parameters);
         println!("X:{:.3} Y:{:.3} Z:{:.3}", pos.x * 1000.0, pos.y * 1000.0, pos.z * 1000.0);
@@ -94,7 +128,7 @@ impl GCode {
         if x || y || !z { 
             println!("error:only G28 Z is supported");
         } else {
-            self.probe_towards(pos.x, pos.y, -self.origin.z - 0.045, parameters, cnc, calibration_object);
+            self.probe_towards(pos.x, pos.y, -self.origin.z - 0.050, parameters, cnc, calibration_object);
             self.origin.z = parameters[Parameter::Z];
         }
     }

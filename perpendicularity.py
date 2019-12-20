@@ -13,7 +13,8 @@ useSimulator = True
 
 simulator = {
     'executable': '/home/peter/github/cnc-z-perpendicularity/simulator/target/debug/simulator',
-    'working_directory': '/home/peter/github/cnc-z-perpendicularity/simulator'
+    'working_directory': '/home/peter/github/cnc-z-perpendicularity/simulator',
+    'fast': True,
 }
 
 marlinPort = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_85531303231351E0E181-if00"
@@ -28,8 +29,8 @@ maxBacklash = 0.06
 
 measurementsCsvFile = None # 'measurements.csv'
 showBacklashHistogram = False
-showAngleFit = True
-showRunoutFit = True
+showAngleFit = False
+showRunoutFit = False
 
 ###############################################################################
 
@@ -42,6 +43,10 @@ marlin = Marlin(simulator if useSimulator else None)
 marlin.connect(marlinPort, marlinBaudrate)
 
 if useSimulator:
+    marlin.send('M800 A0 B0')
+    marlin.send('M801 A0 B0 R0')
+    marlin.send('M802 A0 B0 O0')
+#    marlin.send('G1 X505')
     marlin.home()
 
 if not marlin.isZProbeTriggered():
@@ -106,13 +111,19 @@ for rotation in [0, 180]:
 
     marlin.go(0, 0, safeHeight)
     if rotation == 0:
-        print 'Rotate the end mill 180 degrees and press Enter to continue...'
-        raw_input()
+        if useSimulator:
+            marlin.send('M801 R180')
+        else:
+            print 'Rotate the end mill 180 degrees and press Enter to continue...'
+            raw_input()
 
 marlin.go(0, 0, safeHeight)
 marlin.go(0, 0, boltHeadHeight, mm_per_second=3)    
 marlin.disableSteppers(x=True, y=True, z=True)
 
+if useSimulator:
+    marlin.close()
+    
 measurements = pd.DataFrame(measurements)
 if measurementsCsvFile is not None:
     measurements.to_csv(measurementsCsvFile, index=False)

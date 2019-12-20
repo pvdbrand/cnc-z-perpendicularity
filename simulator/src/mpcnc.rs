@@ -64,7 +64,7 @@ impl MPCNC {
         let z_axis_y_link = RotatingLink::new(&Vec3::y_axis(), 0.0_f64.to_radians(), Parameter::ZAxisY);
         let z_axis_offset_inv_link = FixedLink::new(&Transform::translation(0.09, -0.09, -0.05));
 
-        let spindle_offset_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.015 + 0.185 / 2.0));
+        let spindle_offset_link = FixedLink::new(&Transform::translation(0.0, 0.0, -0.01 + 0.185 / 2.0));
         let spindle_x_link = RotatingLink::new(&Vec3::x_axis(), 0.0_f64.to_radians(), Parameter::SpindleX);
         let spindle_y_link = RotatingLink::new(&Vec3::y_axis(), 0.0_f64.to_radians(), Parameter::SpindleY);
         let spindle_rotation_link = RotatingLink::new(&Vec3::z_axis(), 0.0_f64.to_radians(), Parameter::Spindle);
