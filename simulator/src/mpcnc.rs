@@ -115,10 +115,10 @@ impl MPCNC {
             chain: chain,
         };
 
-        mpcnc.frame.set_color(1.0, 1.0, 0.0);
+        mpcnc.frame.set_color(0.5, 0.5, 0.5);
         mpcnc.spoilboard.set_color(0.25, 0.25, 0.25);
-        mpcnc.x_tube.set_color(1.0, 1.0, 0.0);
-        mpcnc.y_tube.set_color(1.0, 1.0, 0.0);
+        mpcnc.x_tube.set_color(0.5, 0.5, 0.5);
+        mpcnc.y_tube.set_color(0.5, 0.5, 0.5);
         mpcnc.z_axis.set_color(0.0, 0.0, 1.0);
         mpcnc.spindle.set_color(0.0, 1.0, 0.0);
         mpcnc.endmill.set_color(1.0, 0.0, 0.0);
