@@ -4,66 +4,128 @@ use crate::calibration_object::CalibrationObject;
 
 type Field = Option<Option<f64>>;
 
-pub fn parse(line: String, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
-    let line = line.split(";").collect::<Vec<&str>>()[0];
-    let line = line.split("(").collect::<Vec<&str>>()[0];
-    let line = line.split("#").collect::<Vec<&str>>()[0];
-    let line = line.trim();
-    
-    let fields = line.split(" ").collect::<Vec<&str>>();
-    let x = parse_field(&fields, "X");
-    let y = parse_field(&fields, "Y");
-    let z = parse_field(&fields, "Z");
+pub struct GCode {
+    origin: Vec3,
+}
 
-    match fields[0] {
-        "G0" | "G1" => g1(x, y, z, parameters),
-
-        "G38.2" => probe_towards(x, y, z, parameters, cnc, calibration_object),
-        "G38.4" => {},
-        "G92" => {},
-        "M114" => {},
-        "M119" => {},
-
-        "G90" => {},
-        "M17" => {},
-        "M18" => {},
-        "M110" => {},
-        "M400" => {},
-        _ => println!("Ignoring unknown gcode command: {}", line),
+impl GCode {
+    pub fn new() -> GCode {
+        GCode { origin: Vec3::new(0.0, 0.0, 0.0) }
     }
-}
 
-fn g1(x: Field, y: Field, z: Field, parameters: &mut Parameters<Parameter>) {
-    if let Some(Some(x)) = x { parameters[Parameter::X] = x / 1000.0; }
-    if let Some(Some(y)) = y { parameters[Parameter::Y] = y / 1000.0; }
-    if let Some(Some(z)) = z { parameters[Parameter::Z] = z / 1000.0; }
-}
+    pub fn parse(&mut self, line: String, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+        let line = line.split(";").collect::<Vec<&str>>()[0];
+        let line = line.split("(").collect::<Vec<&str>>()[0];
+        let line = line.split("#").collect::<Vec<&str>>()[0];
+        let line = line.trim();
+        
+        let fields = line.split(" ").collect::<Vec<&str>>();
+        let x = self.parse_field(&fields, "X");
+        let y = self.parse_field(&fields, "Y");
+        let z = self.parse_field(&fields, "Z");
 
-fn probe_towards(x: Field, y: Field, z: Field, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
-    let x = if let Some(Some(x)) = x { x / 1000.0 } else { parameters[Parameter::X] };
-    let y = if let Some(Some(y)) = y { y / 1000.0 } else { parameters[Parameter::Y] };
-    let z = if let Some(Some(z)) = z { z / 1000.0 } else { parameters[Parameter::Z] };
-    
-    let movement = Vec3::new(x, y, z) - Vec3::new(parameters[Parameter::X], parameters[Parameter::Y], parameters[Parameter::Z]);
-    let delta = cnc.get_probe(parameters).probe_towards(&calibration_object.get_probe(), &movement).unwrap_or(movement);
+        let has_x = x.is_some();
+        let has_y = y.is_some();
+        let has_z = z.is_some();
 
-    parameters[Parameter::X] += delta.x;
-    parameters[Parameter::Y] += delta.y;
-    parameters[Parameter::Z] += delta.z;
-}
+        let x = if let Some(Some(x)) = x { x / 1000.0 } else { parameters[Parameter::X] - self.origin.x };
+        let y = if let Some(Some(y)) = y { y / 1000.0 } else { parameters[Parameter::Y] - self.origin.y };
+        let z = if let Some(Some(z)) = z { z / 1000.0 } else { parameters[Parameter::Z] - self.origin.z };
 
-fn parse_field(fields: &Vec<&str>, name: &str) -> Field {
-    for field in fields {
-        if field.starts_with(name) {
-            let value = &field[name.len()..];
+        match fields[0] {
+            "G0" | "G1" => self.go_to(x, y, z, parameters),
 
-            if value.len() == 0 {
-                return Some(None)
-            } else {
-                return Some(Some(value.parse().expect("expected floating point value")));
-            }
+            "G28" => self.home(has_x, has_y, has_z, parameters, cnc, calibration_object),
+            "G38.2" => self.probe_towards(x, y, z, parameters, cnc, calibration_object),
+            "G92" => self.set_position(x, y, z, parameters),
+            "M114" => self.get_position(parameters),
+            "M119" => self.endstops(parameters, cnc, calibration_object),
+
+            "G90" => self.ok(),
+            "M17" => self.ok(),
+            "M18" => self.ok(),
+            "M110" => self.ok(),
+            "M400" => self.ok(),
+            
+            "" => {},
+            _ => println!("error:unknown gcode command: {}", line),
         }
     }
 
-    None
+    pub fn get_workspace_position(&self, parameters: &Parameters<Parameter>) -> Vec3 {
+        Vec3::new(
+            parameters[Parameter::X] - self.origin.x,
+            parameters[Parameter::Y] - self.origin.y,
+            parameters[Parameter::Z] - self.origin.z,
+        )
+    }
+
+    fn go_to(&self, x: f64, y: f64, z: f64, parameters: &mut Parameters<Parameter>) {
+        parameters[Parameter::X] = x + self.origin.x;
+        parameters[Parameter::Y] = y + self.origin.y;
+        parameters[Parameter::Z] = z + self.origin.z;
+        self.ok();
+    }
+
+    fn set_position(&mut self, x: f64, y: f64, z: f64, parameters: &mut Parameters<Parameter>) {
+        self.origin = Vec3::new(
+            parameters[Parameter::X] - x,
+            parameters[Parameter::Y] - y,
+            parameters[Parameter::Z] - z,
+        );
+        self.ok();
+    }
+
+    fn get_position(&self, parameters: &mut Parameters<Parameter>) {
+        let pos = self.get_workspace_position(parameters);
+        println!("X:{:.3} Y:{:.3} Z:{:.3}", pos.x * 1000.0, pos.y * 1000.0, pos.z * 1000.0);
+        self.ok();
+    }
+
+    fn endstops(&self, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+        let triggered = cnc.get_probe(parameters).is_touching(&calibration_object.get_probe());
+        println!("z_min: {}", if triggered { "TRIGGERED" } else { "open" });
+        self.ok();
+    }
+
+    fn home(&mut self, x: bool, y: bool, z: bool, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+        let pos = self.get_workspace_position(parameters);
+
+        if x || y || !z { 
+            println!("error:only G28 Z is supported");
+        } else {
+            self.probe_towards(pos.x, pos.y, -self.origin.z - 0.045, parameters, cnc, calibration_object);
+            self.origin.z = parameters[Parameter::Z];
+        }
+    }
+
+    fn probe_towards(&self, x: f64, y: f64, z: f64, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+        let movement = Vec3::new(x, y, z) - self.get_workspace_position(parameters);
+        let delta = cnc.get_probe(parameters).probe_towards(&calibration_object.get_probe(), &movement).unwrap_or(movement);
+
+        parameters[Parameter::X] += delta.x;
+        parameters[Parameter::Y] += delta.y;
+        parameters[Parameter::Z] += delta.z;
+        self.ok();
+    }
+
+    fn ok(&self) {
+        println!("ok");
+    }
+
+    fn parse_field(&self, fields: &Vec<&str>, name: &str) -> Field {
+        for field in fields {
+            if field.starts_with(name) {
+                let value = &field[name.len()..];
+
+                if value.len() == 0 {
+                    return Some(None)
+                } else {
+                    return Some(Some(value.parse().expect("expected floating point value")));
+                }
+            }
+        }
+
+        None
+    }
 }
