@@ -7,7 +7,10 @@ mod calibration_object;
 mod probe;
 mod gcode;
 
-use crate::mpcnc::{Parameter};
+use crate::chain::{Parameters};
+use crate::mpcnc::{MPCNC, Parameter};
+use crate::calibration_object::CalibrationObject;
+use crate::gcode::GCode;
 
 use kiss3d::camera::ArcBall;
 use kiss3d::light::Light;
@@ -26,13 +29,13 @@ use std::thread;
 fn main() {
     let matches = App::new("Simulator")
         .version("0.1.0")
-        .arg(Arg::with_name("gcode")
-            .long("gcode")
-            .short("g")
-            .help("control the MPCNC with gcode only"))
+        .arg(Arg::with_name("no-keyboard")
+            .long("no-keyboard")
+            .short("k")
+            .help("disable keyboard controls"))
         .get_matches();
 
-    simulator(!matches.is_present("gcode"));
+    simulator(!matches.is_present("no-keyboard"));
 }
 
 fn simulator(manual_control: bool) {
@@ -55,12 +58,7 @@ fn simulator(manual_control: bool) {
 
     while window.render_with_camera(&mut camera) {
         gui::handle_events(&mut window, &mut parameters, manual_control);
-
-        match stdin_channel.try_recv() {
-            Ok(line) => gcode.parse(line, &mut parameters, &cnc, &calibration_object),
-            Err(TryRecvError::Empty) => {},
-            Err(TryRecvError::Disconnected) => break,
-        }
+        handle_gcode(&stdin_channel, &mut gcode, &mut parameters, &cnc, &calibration_object);
 
         let endmill_tip = cnc.get_end_effector_pos(&parameters);
         
@@ -100,6 +98,16 @@ fn simulator(manual_control: bool) {
         let fps = 1.0 / (now.elapsed().as_nanos() as f64 / 1e9_f64);
         now = Instant::now();
         window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 150.0), 30.0, &font, &Point3::new(0.5, 0.5, 0.5));
+    }
+}
+
+fn handle_gcode(stdin_channel: &Receiver<String>, gcode: &mut GCode, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) -> bool {
+    loop {
+        match stdin_channel.try_recv() {
+            Ok(line) => gcode.parse(line, parameters, cnc, calibration_object),
+            Err(TryRecvError::Empty) => return true,
+            Err(TryRecvError::Disconnected) => return false,
+        }
     }
 }
 
