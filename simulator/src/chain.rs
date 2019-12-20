@@ -2,18 +2,18 @@ use std::vec::Vec;
 
 use enum_map::{Enum, EnumMap};
 use na::geometry::UnitQuaternion;
-use na::{Dynamic, Isometry3, MatrixMN, Unit, Vector3, VectorN, U7};
+use na::{Isometry3, Unit, Vector3};
 
-pub type Transform = Isometry3<f32>;
-pub type Vec3 = Vector3<f32>;
+pub type Transform = Isometry3<f64>;
+pub type Vec3 = Vector3<f64>;
 
-pub type Parameters<P> = EnumMap<P, f32>;
+pub type Parameters<P> = EnumMap<P, f64>;
 
 pub trait Bounds<P> {
-    fn bounded(&self, new_value: f32) -> f32;
+    fn bounded(&self, new_value: f64) -> f64;
 }
 
-pub trait Link<P: Enum<f32>> {
+pub trait Link<P: Enum<f64>> {
     fn get_local_transform(&self, parameters: &Parameters<P>) -> Transform;
 }
 
@@ -23,8 +23,8 @@ pub struct Chain<P> {
 
 impl<P> Chain<P>
 where
-    P: Enum<f32> + Copy + Bounds<P>,
-    <P as Enum<f32>>::Array: Clone,
+    P: Enum<f64> + Copy + Bounds<P>,
+    <P as Enum<f64>>::Array: Clone,
 {
     pub fn new(links: Vec<Box<dyn Link<P>>>) -> Self {
         Chain { links }
@@ -43,11 +43,6 @@ where
         result
     }
 
-    #[allow(dead_code)]
-    pub fn get_links(&self) -> &Vec<Box<dyn Link<P>>> {
-        &self.links
-    }
-
     pub fn compute_all_start_poses(&self, parameters: &Parameters<P>) -> Vec<Transform> {
         let n = self.links.len();
         let mut t = Transform::identity();
@@ -60,102 +55,6 @@ where
 
         result
     }
-
-    #[allow(dead_code)]
-    pub fn forward_kinematics(&self, parameters: &Parameters<P>) -> Transform {
-        let mut result = Transform::identity();
-
-        for link in self.links.iter() {
-            result *= link.get_local_transform(parameters);
-        }
-
-        result
-    }
-
-    #[allow(dead_code)]
-    pub fn inverse_kinematics(
-        &self,
-        parameters: &Parameters<P>,
-        target: &Transform,
-        max_iterations: usize,
-        distance_threshold: f32,
-    ) -> Option<Parameters<P>> {
-        if self.links.is_empty() {
-            return None;
-        }
-
-        let mut current = parameters.clone();
-
-        for iteration in 0..=max_iterations {
-            let t = self.forward_kinematics(&current);
-            let e = transform_difference(&t, &target);
-
-            if e.norm() <= distance_threshold {
-                return Some(current);
-            }
-
-            if iteration < max_iterations {
-                self.inverse_jacobian_step(&mut current, &e);
-            }
-        }
-
-        None
-    }
-
-    fn compute_jacobian(&self, parameters: &mut Parameters<P>) -> MatrixMN<f32, U7, Dynamic> {
-        let mut result = MatrixMN::<f32, U7, Dynamic>::zeros(parameters.len());
-        let current_end_pose = self.forward_kinematics(parameters);
-        let epsilon = 0.001;
-
-        for c in 0..P::POSSIBLE_VALUES {
-            let param = P::from_usize(c);
-
-            let old = parameters[param];
-            parameters[param] += epsilon;
-            let new_end_pose = self.forward_kinematics(parameters);
-            parameters[param] = old;
-
-            let diff = transform_difference(&current_end_pose, &new_end_pose) / epsilon;
-            result.set_column(c, &diff);
-        }
-
-        result
-    }
-
-    fn inverse_jacobian_step(&self, parameters: &mut Parameters<P>, e: &TransformDifference) {
-        let jacobian = self.compute_jacobian(parameters);
-        let inverse_jacobian = jacobian
-            .svd(true, true)
-            .pseudo_inverse(1e-4)
-            .expect("Could not compute pseudo inverse of Jacobian");
-
-        debug_assert!(inverse_jacobian.nrows() == parameters.len());
-        debug_assert!(inverse_jacobian.ncols() == 7);
-
-        for (r, (param, value)) in parameters.iter_mut().enumerate() {
-            *value = param.bounded(*value + inverse_jacobian.row(r).transpose().dot(e));
-        }
-    }
-}
-
-type TransformDifference = VectorN<f32, U7>;
-
-fn transform_difference(a: &Transform, b: &Transform) -> TransformDifference {
-    let mut result = VectorN::<f32, U7>::zeros();
-    let dr = b.rotation.coords - a.rotation.coords;
-    let dt = b.translation.vector - a.translation.vector;
-
-    debug_assert!(dr.len() == 4);
-    debug_assert!(dt.len() == 3);
-
-    for (r, v) in dr.iter().enumerate() {
-        result[r] = *v;
-    }
-    for (r, v) in dt.iter().enumerate() {
-        result[r + 4] = *v;
-    }
-
-    result
 }
 
 // Fixed link -----------------------------------------------------------------
@@ -172,7 +71,7 @@ impl FixedLink {
     }
 }
 
-impl<P: Enum<f32>> Link<P> for FixedLink {
+impl<P: Enum<f64>> Link<P> for FixedLink {
     fn get_local_transform(&self, _parameters: &Parameters<P>) -> Transform {
         self.transform
     }
@@ -180,18 +79,18 @@ impl<P: Enum<f32>> Link<P> for FixedLink {
 
 // Sliding link ---------------------------------------------------------------
 
-pub struct SlidingLink<P: Enum<f32> + Copy> {
+pub struct SlidingLink<P: Enum<f64> + Copy> {
     axis: Unit<Vec3>,
     parameter: P,
 }
 
-impl<P: Enum<f32> + Copy> SlidingLink<P> {
+impl<P: Enum<f64> + Copy> SlidingLink<P> {
     pub fn new(axis: &Unit<Vec3>, parameter: P) -> Self {
         SlidingLink { axis: *axis, parameter }
     }
 }
 
-impl<P: Enum<f32> + Copy> Link<P> for SlidingLink<P> {
+impl<P: Enum<f64> + Copy> Link<P> for SlidingLink<P> {
     fn get_local_transform(&self, parameters: &Parameters<P>) -> Transform {
         let param = parameters[self.parameter];
 
@@ -201,14 +100,14 @@ impl<P: Enum<f32> + Copy> Link<P> for SlidingLink<P> {
 
 // Rotating link --------------------------------------------------------------
 
-pub struct RotatingLink<P: Enum<f32> + Copy> {
+pub struct RotatingLink<P: Enum<f64> + Copy> {
     axis: Unit<Vec3>,
-    center_angle: f32,
+    center_angle: f64,
     parameter: P,
 }
 
-impl<P: Enum<f32> + Copy> RotatingLink<P> {
-    pub fn new(axis: &Unit<Vec3>, center_angle: f32, parameter: P) -> Self {
+impl<P: Enum<f64> + Copy> RotatingLink<P> {
+    pub fn new(axis: &Unit<Vec3>, center_angle: f64, parameter: P) -> Self {
         RotatingLink {
             axis: *axis,
             center_angle,
@@ -217,7 +116,7 @@ impl<P: Enum<f32> + Copy> RotatingLink<P> {
     }
 }
 
-impl<P: Enum<f32> + Copy> Link<P> for RotatingLink<P> {
+impl<P: Enum<f64> + Copy> Link<P> for RotatingLink<P> {
     fn get_local_transform(&self, parameters: &Parameters<P>) -> Transform {
         Transform::identity() * UnitQuaternion::from_axis_angle(&self.axis, parameters[self.parameter] + self.center_angle)
     }
