@@ -1,4 +1,4 @@
-use crate::chain::{Transform};
+use crate::chain::{Transform, Vec3};
 
 use ncollide3d::shape::{ShapeHandle, ConvexHull};
 use ncollide3d::procedural::TriMesh;
@@ -35,5 +35,25 @@ impl Probe {
         }
 
         false
+    }
+
+    pub fn probe_towards(&self, other: &Probe, movement: &Vec3) -> Option<Vec3> {
+        let mut closest_toi = 1.0;
+        let mut closest_vec = None;
+
+        for (a_transform, a_shape) in &self.objects {
+            for (b_transform, b_shape) in &other.objects {
+                let toi = ncollide3d::query::time_of_impact(a_transform, movement, &**a_shape, b_transform, &Vec3::zeros(), &**b_shape, 1.0, 0.0);
+
+                if let Some(time) = toi {
+                    if time.toi < closest_toi {
+                        closest_toi = time.toi;
+                        closest_vec = Some(movement * time.toi);
+                    }
+                }
+            }
+        }
+
+        closest_vec
     }
 }

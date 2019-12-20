@@ -74,6 +74,11 @@ fn simulator(manual_control: bool) {
 
         window.draw_text(if triggered { "Z probe: TRIGGERED" } else { "Z probe: open" }, &Point2::new(0.0, 90.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
 
+        let pp = cnc_probe.probe_towards(cal_probe, &na::Vector3::new(1.0, 0.0, 0.0));
+        if let Some(p) = pp {
+            window.draw_text(&format!("Probe towards: {} {} {}", p.x, p.y, p.z), &Point2::new(0.0, 150.0), 30.0, &font, &Point3::new(1.0, 1.0, 1.0));
+        }
+
         let fps = 1.0 / (now.elapsed().as_nanos() as f64 / 1e9_f64);
         now = Instant::now();
         window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 120.0), 30.0, &font, &Point3::new(0.5, 0.5, 0.5));
