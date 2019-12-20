@@ -61,33 +61,6 @@ where
         result
     }
 
-    // #[allow(dead_code)]
-    // pub fn compute_self_collisions(&self, parameters: &Parameters<P>) -> Vec<(usize, usize)> {
-    //     let start_poses = self.compute_all_start_poses(parameters);
-    //     let mut result = Vec::new();
-
-    //     for i in 0..self.links.len() {
-    //         if let Some(shape_i) = self.links[i].get_collision_shape() {
-    //             let pose_i = &start_poses[i];
-
-    //             for j in i + 1..self.links.len() {
-    //                 if !self.ignore_collision_link_indices.contains(&(i, j)) && !self.ignore_collision_link_indices.contains(&(j, i)) {
-    //                     if let Some(shape_j) = self.links[j].get_collision_shape() {
-    //                         let pose_j = &start_poses[j];
-    //                         let d = ncollide3d::query::distance(pose_i, &**shape_i, pose_j, &**shape_j);
-
-    //                         if d == 0.0 {
-    //                             result.push((i, j));
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     result
-    // }
-
     #[allow(dead_code)]
     pub fn forward_kinematics(&self, parameters: &Parameters<P>) -> Transform {
         let mut result = Transform::identity();
