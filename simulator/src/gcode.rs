@@ -25,11 +25,6 @@ impl GCode {
         let o = self.parse_field(&fields, "O");
         let r = self.parse_field(&fields, "R");
 
-        let a = if let Some(Some(a)) = a { a } else { 0.0 };
-        let b = if let Some(Some(b)) = b { b } else { 0.0 };
-        let o = if let Some(Some(o)) = o { o } else { 0.0 };
-        let r = if let Some(Some(r)) = r { r } else { 0.0 };
-
         let x = self.parse_field(&fields, "X");
         let y = self.parse_field(&fields, "Y");
         let z = self.parse_field(&fields, "Z");
@@ -90,23 +85,23 @@ impl GCode {
         self.ok();
     }
 
-    fn set_z_axis(&mut self, x: f64, y: f64, parameters: &mut Parameters<Parameter>) {
-        parameters[Parameter::ZAxisX] = x.to_radians();
-        parameters[Parameter::ZAxisY] = y.to_radians();
+    fn set_z_axis(&mut self, a: Field, b: Field, parameters: &mut Parameters<Parameter>) {
+        if let Some(Some(a)) = a { parameters[Parameter::ZAxisX] = a.to_radians(); }
+        if let Some(Some(b)) = b { parameters[Parameter::ZAxisY] = b.to_radians(); }
         self.ok();
     }
 
-    fn set_spindle(&mut self, x: f64, y: f64, rotation: f64, parameters: &mut Parameters<Parameter>) {
-        parameters[Parameter::SpindleX] = x.to_radians();
-        parameters[Parameter::SpindleY] = y.to_radians();
-        parameters[Parameter::Spindle] = rotation.to_radians();
+    fn set_spindle(&mut self, a: Field, b: Field, r: Field, parameters: &mut Parameters<Parameter>) {
+        if let Some(Some(a)) = a { parameters[Parameter::SpindleX] = a.to_radians(); }
+        if let Some(Some(b)) = b { parameters[Parameter::SpindleY] = b.to_radians(); }
+        if let Some(Some(r)) = r { parameters[Parameter::Spindle] = r.to_radians(); }
         self.ok();
     }
 
-    fn set_endmill(&mut self, x: f64, y: f64, offset: f64, parameters: &mut Parameters<Parameter>) {
-        parameters[Parameter::EndmillX] = x.to_radians();
-        parameters[Parameter::EndmillY] = y.to_radians();
-        parameters[Parameter::EndmillOffset] = offset / 1000.0;
+    fn set_endmill(&mut self, a: Field, b: Field, o: Field, parameters: &mut Parameters<Parameter>) {
+        if let Some(Some(a)) = a { parameters[Parameter::EndmillX] = a.to_radians(); }
+        if let Some(Some(b)) = b { parameters[Parameter::EndmillY] = b.to_radians(); }
+        if let Some(Some(o)) = o { parameters[Parameter::EndmillOffset] = o / 1000.0; }
         self.ok();
     }
 

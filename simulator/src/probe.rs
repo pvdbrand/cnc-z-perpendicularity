@@ -56,4 +56,33 @@ impl Probe {
 
         closest_vec
     }
+/*
+    pub fn probe_towards(&self, other: &Probe, movement: &Vec3) -> Vec3 {
+        let mut result = movement.clone();
+
+        for (a_transform, a_shape) in &self.objects {
+            for (b_transform, b_shape) in &other.objects {
+                let toi = ncollide3d::query::time_of_impact(a_transform, movement, &**a_shape, b_transform, &Vec3::zeros(), &**b_shape, 1.0, 0.0);
+
+                if let Some(toi) = toi {
+                    let mut delta = movement * toi.toi;
+
+                    for _ in 0..100 {
+                        if delta.norm() >= result.norm() {
+                            break;
+                        }
+                        if ncollide3d::query::proximity(&(a_transform * &Transform::translation(delta.x, delta.y, delta.z)), &**a_shape, 
+                                                        b_transform, &**b_shape, 0.0) == ncollide3d::query::Proximity::Intersecting {
+                            result = delta;
+                            break;
+                        }
+                        delta += movement.normalize() * 1e-6;
+                    }
+                }
+            }
+        }
+
+        result
+    }
+*/
 }

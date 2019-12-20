@@ -21,8 +21,8 @@ marlinPort = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_85531303231351
 marlinBaudrate = 250000
 
 probeYpos = 20
-probeXpos = 25
-probeWidth = 10
+probeXpos = 20
+probeWidth = 4
 probeHeight = 15
 boltHeadHeight = 7.5
 maxBacklash = 0.06
@@ -46,7 +46,7 @@ if useSimulator:
     marlin.send('M800 A0 B0')
     marlin.send('M801 A0 B0 R0')
     marlin.send('M802 A0 B0 O0')
-#    marlin.send('G1 X505')
+#    marlin.send('G1 X500 Y245')
     marlin.home()
 
 if not marlin.isZProbeTriggered():
@@ -67,9 +67,9 @@ if marlin.isZProbeTriggered():
 
 measurements = []
 for rotation in [0, 180]:
-    for plane in ['yz', 'xz']:
+    for axis in ['x', 'y']:
         for side in [-1, 1]:
-            if plane == 'yz':
+            if axis == 'x':
                 x = probeXpos
                 px = probeXpos
                 dx = 0
@@ -94,14 +94,14 @@ for rotation in [0, 180]:
                 for attempt in range(3):
                     x, y, _ = marlin.probe(px, py, z, mm_per_second=1, towards=True)
                 measurements += [{'x': x, 'y': y, 'z': z, 
-                                  'plane': plane, 'side': side, 'rotation': rotation,
+                                  'axis': axis, 'side': side, 'rotation': rotation,
                                   'towards': True, 'ok': marlin.isZProbeTriggered()}]
 
                 if not useSimulator:
                     for attempt in range(3):
                         x, y, _ = marlin.probe(x + dx, y + dy, z, mm_per_second=1, towards=False)
                     measurements += [{'x': x, 'y': y, 'z': z, 
-                                      'plane': plane, 'side': side, 'rotation': rotation,
+                                      'axis': axis, 'side': side, 'rotation': rotation,
                                       'towards': False, 'ok': not marlin.isZProbeTriggered()}]
                 
                 marlin.go(x + dx, y + dy, z, mm_per_second=3, wait=True)
@@ -131,15 +131,15 @@ if measurementsCsvFile is not None:
 ###############################################################################
 
 if 0:
-    plane = 'yz'; rows = measurements[measurements['plane'] == plane]
-    plane = 'xz'; rows = measurements[measurements['plane'] == plane]
+    axis = 'x'; rows = measurements[measurements['axis'] == axis]
+    axis = 'y'; rows = measurements[measurements['axis'] == axis]
 
-for plane, rows in sorted(measurements.groupby('plane')):
-    column = 'y' if plane == 'yz' else 'x'
+for axis, rows in sorted(measurements.groupby('axis')):
+    column = 'x' if axis == 'y' else 'y'
     
     invalidZ = set(rows[~rows['ok']].z)
     if len(invalidZ) > 0:
-        print 'Warning: plane %s: ignoring possibly invalid measurements at these Z coordinates: %s' % (plane, str(list(sorted(invalidZ))))
+        print 'Warning: %s axis: ignoring possibly invalid measurements at these Z coordinates: %s' % (axis, str(list(sorted(invalidZ))))
         rows = rows[~rows['z'].isin(invalidZ)]
         
     sides = None
@@ -164,13 +164,13 @@ for plane, rows in sorted(measurements.groupby('plane')):
     
     if showBacklashHistogram:
         backlash = sides[[c for c in sides if c.startswith('backlash')]].stack()
-        pd.DataFrame({'Histogram of backlash in %s plane' % plane: backlash}).hist(bins=20)
+        pd.DataFrame({'Histogram of backlash along %s axis' % axis: backlash}).hist(bins=20)
         plt.show()
 
     backlashTooLarge = (sides[[c for c in sides if c.startswith('backlash')]] > maxBacklash).any(axis=1)
     backlashTooLargeZ = set(backlashTooLarge[backlashTooLarge].index)
     if len(backlashTooLargeZ) > 0:
-        print 'Warning: plane %s: ignoring measurements with large backlash at these Z coordinates: %s' % (plane, str(list(sorted(backlashTooLargeZ))))
+        print 'Warning: %s axis: ignoring measurements with large backlash at these Z coordinates: %s' % (axis, str(list(sorted(backlashTooLargeZ))))
         sides = sides[~sides.index.isin(backlashTooLargeZ)]
 
     sides = sides[[c for c in sides if c.startswith('left') or c.startswith('right')]].copy()
@@ -182,7 +182,7 @@ for plane, rows in sorted(measurements.groupby('plane')):
     toolModel = sm.OLS(tool['center'], tool[['c', 'z']]).fit()
     toolSlope = toolModel.params['z']
     
-    print 'Angle in the', plane, 'plane:', math.degrees(math.atan2(toolSlope, 1)), 'degrees off perpendicular'
+    print 'Angle around the %s axis:        %8.2f degrees off perpendicular' % (axis, math.degrees(math.atan2(toolSlope, 1)))
     if showAngleFit:
         sns.regplot(sides.index.values, sides[['center_0', 'center_180']].mean(axis=1).values)
         plt.show()
@@ -193,7 +193,7 @@ for plane, rows in sorted(measurements.groupby('plane')):
     runoutModel = sm.OLS(runout['radius'], runout[['c', 'z']]).fit()
     runoutSlope = runoutModel.params['z']
     
-    print 'Runout angle in the', plane, 'plane:', math.degrees(math.atan2(runoutSlope, 1)), 'degrees'
+    print 'Runout angle around the %s axis: %8.2f degrees' % (axis, math.degrees(math.atan2(runoutSlope, 1)))
     if showRunoutFit:
         sns.regplot(runout.z.values, runout.radius.values)
         plt.show()
