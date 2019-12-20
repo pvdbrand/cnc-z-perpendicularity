@@ -5,6 +5,7 @@ mod gui;
 mod mpcnc;
 mod calibration_object;
 mod probe;
+mod gcode;
 
 use crate::mpcnc::{Parameter};
 
@@ -16,6 +17,11 @@ use na::{Point2, Point3};
 use std::path::Path;
 use std::time::Instant;
 use clap::{App, Arg};
+use std::io;
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::TryRecvError;
+use std::thread;
 
 fn main() {
     let matches = App::new("Simulator")
@@ -33,6 +39,7 @@ fn simulator(manual_control: bool) {
     let resources_dir = Path::new("resources");
     let font = Font::default();
     let mut now = Instant::now();
+    let stdin_channel = spawn_stdin_channel();
 
     let mut window = Window::new_with_size("Simulator", 1280, 720);
     let eye = na::Point3::new(0.5, -1.0, 1.0);
@@ -47,7 +54,13 @@ fn simulator(manual_control: bool) {
 
     while window.render_with_camera(&mut camera) {
         gui::handle_events(&mut window, &mut parameters, manual_control);
-        
+
+        match stdin_channel.try_recv() {
+            Ok(line) => gcode::parse(line, &mut parameters, &cnc, &calibration_object),
+            Err(TryRecvError::Empty) => {},
+            Err(TryRecvError::Disconnected) => break,
+        }
+
         let endmill_tip = cnc.get_end_effector_pos(&parameters);
         
         gui::draw_transform(&mut window, &chain::Transform::identity(), 1.0);
@@ -83,4 +96,30 @@ fn simulator(manual_control: bool) {
         now = Instant::now();
         window.draw_text(&format!("FPS: {:.0}", fps.round()), &Point2::new(0.0, 120.0), 30.0, &font, &Point3::new(0.5, 0.5, 0.5));
     }
+}
+
+fn spawn_stdin_channel() -> Receiver<String> {
+    let (tx, rx) = mpsc::channel::<String>();
+
+    thread::spawn(move || {
+        loop {
+            let mut buffer = String::new();
+            match io::stdin().read_line(&mut buffer) {
+                Ok(n) => {
+                    if n == 0 {
+                        break; // EOF
+                    } else {
+                        tx.send(buffer).unwrap();
+                    }
+                }
+                Err(err) => {
+                    println!("Error while trying to read from standard input: {}", err); 
+                    break;
+                }
+            }
+        }
+        drop(tx);
+    });
+
+    rx
 }
