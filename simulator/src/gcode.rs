@@ -130,11 +130,43 @@ impl GCode {
 
     fn probe_towards(&self, x: f64, y: f64, z: f64, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
         let movement = Vec3::new(x, y, z) - self.get_workspace_position(parameters);
-        let delta = cnc.get_probe(parameters).probe_towards(&calibration_object.get_probe(), &movement).unwrap_or(movement);
+        let mut toi = cnc.get_probe(parameters).approx_time_of_impact(&calibration_object.get_probe(), &movement);
 
-        parameters[Parameter::X] += delta.x;
-        parameters[Parameter::Y] += delta.y;
-        parameters[Parameter::Z] += delta.z;
+        let microns = movement.norm() * 1e6;
+        let time_per_micron = 1.0 / microns;
+
+        let start_x = parameters[Parameter::X];
+        let start_y = parameters[Parameter::Y];
+        let start_z = parameters[Parameter::Z];
+
+        // back off until the probe is not touching anymore
+        loop {
+            let delta = movement * toi;
+            parameters[Parameter::X] = start_x + delta.x;
+            parameters[Parameter::Y] = start_y + delta.y;
+            parameters[Parameter::Z] = start_z + delta.z;
+
+            if !cnc.get_probe(parameters).is_touching(&calibration_object.get_probe()) || toi == 0.0 {
+                break;
+            }
+
+            toi = (toi - time_per_micron).max(0.0);
+        }
+
+        // move until the probe is touching again
+        loop {
+            let delta = movement * toi;
+            parameters[Parameter::X] = start_x + delta.x;
+            parameters[Parameter::Y] = start_y + delta.y;
+            parameters[Parameter::Z] = start_z + delta.z;
+            
+            if cnc.get_probe(parameters).is_touching(&calibration_object.get_probe()) || toi == 1.0 {
+                break;
+            }
+
+            toi = (toi + time_per_micron).min(1.0);
+        }
+
         self.ok();
     }
 
