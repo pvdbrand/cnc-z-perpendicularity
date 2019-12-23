@@ -55,7 +55,8 @@ fn simulator(manual_control: bool, fast: bool) {
     let mut camera = ArcBall::new(eye, at);
 
     let mut cnc = mpcnc::MPCNC::new(&mut window, &resources_dir);
-    let mut calibration_object = calibration_object::CalibrationObject::new(&mut window, &resources_dir);
+    //let mut calibration_object = calibration_object::TwoWires::new(&mut window, &resources_dir);
+    let mut calibration_object = calibration_object::FeelerGauge::new(&mut window, &resources_dir);
     let mut parameters = cnc.get_default_parameters();
 
     window.set_light(Light::StickToCamera);
@@ -105,7 +106,7 @@ fn simulator(manual_control: bool, fast: bool) {
     }
 }
 
-fn handle_gcode(stdin_channel: &Receiver<String>, gcode: &mut GCode, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject, fast: bool) -> bool {
+fn handle_gcode(stdin_channel: &Receiver<String>, gcode: &mut GCode, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &Box<dyn CalibrationObject>, fast: bool) -> bool {
     let mut timeout = std::time::Duration::from_millis(0);
 
     loop {

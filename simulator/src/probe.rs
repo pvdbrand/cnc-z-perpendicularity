@@ -25,6 +25,19 @@ impl Probe {
         (mesh32, ShapeHandle::new(shape))
     }
 
+    pub fn get_box_shape(x: f64, y: f64, z: f64, transform: &Transform) -> (TriMesh<f32>, ShapeHandle<f64>) {
+        let mut mesh64 = ncollide3d::procedural::cuboid(&Vec3::new(x, y, z));
+        let mut mesh32 = ncollide3d::procedural::cuboid(&na::Vector3::new(x as f32, y as f32, z as f32));
+
+        mesh64.transform_by(transform);
+        mesh32.transform_by(&na::convert(*transform));
+
+        let shape = ConvexHull::try_from_points(&mesh64.coords.clone()).expect("Invalid convex shape");
+        shape.check_geometry();
+        
+        (mesh32, ShapeHandle::new(shape))
+    }
+
     pub fn is_touching(&self, other: &Probe) -> bool {
         for (a_transform, a_shape) in &self.objects {
             for (b_transform, b_shape) in &other.objects {

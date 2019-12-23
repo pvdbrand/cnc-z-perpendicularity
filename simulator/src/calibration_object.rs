@@ -7,7 +7,20 @@ use std::path::Path;
 use ncollide3d::shape::ShapeHandle;
 use na::{Translation3, UnitQuaternion};
 
-pub struct CalibrationObject {
+pub trait CalibrationObject {
+    fn get_probe(&self) -> Probe;
+    fn render(&mut self);
+}
+
+pub struct FeelerGauge {
+    pos: Transform,
+
+    gauge: SceneNode,
+
+    gauge_shape: ShapeHandle<f64>,
+}
+
+pub struct TwoWires {
     pos: Transform,
 
     plastic: SceneNode,
@@ -24,8 +37,45 @@ pub struct CalibrationObject {
     bolt_y_shape: ShapeHandle<f64>,
 }
 
-impl CalibrationObject {
-    pub fn new(window: &mut Window, resources_dir: &Path) -> CalibrationObject {
+impl FeelerGauge {
+    #[allow(dead_code)]
+    pub fn new(window: &mut Window, _resources_dir: &Path) -> Box<dyn CalibrationObject> {
+        let x = 0.100;
+        let y = 0.010;
+        let z = 0.080 / 1000.0;
+
+        let (mesh, shape) = Probe::get_box_shape(x, y, z, &Transform::from_parts(
+            Translation3::new(x / 2.0, 0.0, 0.020),
+            UnitQuaternion::identity()
+        ));
+
+        let mut object = FeelerGauge {
+            pos: Transform::translation(0.495, 0.25, 0.0),
+            gauge: window.add_trimesh(mesh, na::Vector3::from_element(1.0_f32)),
+            gauge_shape: shape,
+        };
+
+        object.gauge.set_color(1.0, 0.0, 0.0);
+        
+        Box::new(object)
+    }
+}
+
+impl CalibrationObject for FeelerGauge {
+    fn get_probe(&self) -> Probe {
+        Probe::new(vec![
+            (self.pos, self.gauge_shape.clone()),
+        ])
+    }
+
+    fn render(&mut self) {
+        self.gauge.set_local_transformation(na::convert(self.pos));
+    }
+}
+
+impl TwoWires {
+    #[allow(dead_code)]
+    pub fn new(window: &mut Window, resources_dir: &Path) -> Box<dyn CalibrationObject> {
         let mm = na::Vector3::new(0.001, 0.001, 0.001);
         let diameter = 0.1 / 1000.0;
         let length = 0.040;
@@ -56,7 +106,7 @@ impl CalibrationObject {
             UnitQuaternion::from_axis_angle(&Vec3::x_axis(), 90.0_f64.to_radians())
         ));
 
-        let mut object = CalibrationObject {
+        let mut object = TwoWires {
             pos: Transform::translation(0.52, 0.26, 0.0),
             plastic: window.add_obj(&resources_dir.join("calibration-object-plastic.obj"), resources_dir, mm),
             wire_x: window.add_trimesh(wire_x_mesh, na::Vector3::from_element(1.0_f32)),
@@ -78,10 +128,12 @@ impl CalibrationObject {
         object.bolt_x.set_color(1.0, 0.0, 0.0);
         object.bolt_y.set_color(1.0, 0.0, 0.0);
         
-        object
+        Box::new(object)
     }
+}
 
-    pub fn get_probe(&self) -> Probe {
+impl CalibrationObject for TwoWires {
+    fn get_probe(&self) -> Probe {
         Probe::new(vec![
             (self.pos, self.wire_x_shape.clone()),
             (self.pos, self.wire_y_shape.clone()),
@@ -91,7 +143,7 @@ impl CalibrationObject {
         ])
     }
 
-    pub fn render(&mut self) {
+    fn render(&mut self) {
         self.plastic.set_local_transformation(na::convert(self.pos));
         self.wire_x.set_local_transformation(na::convert(self.pos));
         self.wire_y.set_local_transformation(na::convert(self.pos));

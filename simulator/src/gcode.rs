@@ -13,7 +13,7 @@ impl GCode {
         GCode { origin: Vec3::new(0.0, 0.0, 0.0) }
     }
 
-    pub fn parse(&mut self, line: String, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+    pub fn parse(&mut self, line: String, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &Box<dyn CalibrationObject>) {
         let line = line.split(";").collect::<Vec<&str>>()[0];
         let line = line.split("(").collect::<Vec<&str>>()[0];
         let line = line.split("#").collect::<Vec<&str>>()[0];
@@ -111,13 +111,13 @@ impl GCode {
         self.ok();
     }
 
-    fn endstops(&self, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+    fn endstops(&self, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &Box<dyn CalibrationObject>) {
         let triggered = cnc.get_probe(parameters).is_touching(&calibration_object.get_probe());
         println!("z_min: {}", if triggered { "TRIGGERED" } else { "open" });
         self.ok();
     }
 
-    fn home(&mut self, x: bool, y: bool, z: bool, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+    fn home(&mut self, x: bool, y: bool, z: bool, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &Box<dyn CalibrationObject>) {
         let pos = self.get_workspace_position(parameters);
 
         if x || y || !z { 
@@ -128,7 +128,7 @@ impl GCode {
         }
     }
 
-    fn probe_towards(&self, x: f64, y: f64, z: f64, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &CalibrationObject) {
+    fn probe_towards(&self, x: f64, y: f64, z: f64, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &Box<dyn CalibrationObject>) {
         let movement = Vec3::new(x, y, z) - self.get_workspace_position(parameters);
         let mut toi = cnc.get_probe(parameters).approx_time_of_impact(&calibration_object.get_probe(), &movement);
 

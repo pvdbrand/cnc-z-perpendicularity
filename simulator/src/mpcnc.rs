@@ -31,7 +31,7 @@ impl Bounds<Parameter> for Parameter {
             Parameter::X => new_value.max(0.0).min(1.0),
             Parameter::Y => new_value.max(0.0).min(0.5),
             Parameter::Z => new_value.max(-0.045).min(0.0),
-            Parameter::EndmillOffset => new_value.max(0.0).min(0.01),
+            Parameter::EndmillOffset => new_value.max(0.0).min(0.150),
             _ => (new_value + std::f64::consts::PI * 2.0) % (std::f64::consts::PI * 2.0),
         }
     }
@@ -44,6 +44,7 @@ pub struct MPCNC {
     y_tube: SceneNode,
     z_axis: SceneNode,
     spindle: SceneNode,
+    arm: SceneNode,
     endmill: SceneNode,
     endmill_collision_shape: ShapeHandle<f64>,
     endmill_index: usize,
@@ -109,6 +110,7 @@ impl MPCNC {
             y_tube: window.add_obj(&resources_dir.join("gantry-y-tube.obj"), resources_dir, mm),
             z_axis: window.add_obj(&resources_dir.join("z-axis.obj"), resources_dir, mm),
             spindle: window.add_obj(&resources_dir.join("spindle.obj"), resources_dir, mm),
+            arm: window.add_obj(&resources_dir.join("arm.obj"), resources_dir, mm),
             endmill: window.add_trimesh(endmill_trimesh, na::Vector3::from_element(1.0_f32)),
             endmill_collision_shape: endmill_collision_shape,
             endmill_index: 17,
@@ -121,6 +123,7 @@ impl MPCNC {
         mpcnc.y_tube.set_color(0.5, 0.5, 0.5);
         mpcnc.z_axis.set_color(0.0, 0.0, 1.0);
         mpcnc.spindle.set_color(0.0, 1.0, 0.0);
+        mpcnc.arm.set_color(0.0, 1.0, 0.0);
         mpcnc.endmill.set_color(1.0, 0.0, 0.0);
 
         mpcnc
@@ -166,6 +169,7 @@ impl MPCNC {
         self.y_tube.set_local_transformation(na::convert(start_poses[3] * Transform::translation(-start_poses[3].translation.x, 0.0, 0.0)));
         self.z_axis.set_local_transformation(na::convert(start_poses[8]));
         self.spindle.set_local_transformation(na::convert(start_poses[13]));
+        self.arm.set_local_transformation(na::convert(start_poses[13]));
         
         self.endmill.set_local_transformation(na::convert(self.get_end_effector_pos(parameters)));
     }
