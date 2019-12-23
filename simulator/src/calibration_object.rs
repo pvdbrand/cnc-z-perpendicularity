@@ -37,6 +37,7 @@ impl CalibrationObject {
 
         let (wire_y_mesh, wire_y_shape) = Probe::get_cylinder_shape(diameter, length, &Transform::from_parts(
             Translation3::new(-0.0215, -0.010 + length / 2.0, 0.036), 
+            //UnitQuaternion::from_axis_angle(&Vec3::z_axis(), 3.0_f64.atan2(40.0)) * UnitQuaternion::from_axis_angle(&Vec3::x_axis(), 2.0_f64.atan2(40.0))
             UnitQuaternion::identity()
         ));
 

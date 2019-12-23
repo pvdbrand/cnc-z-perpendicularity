@@ -43,10 +43,10 @@ marlin = Marlin(simulator if useSimulator else None)
 marlin.connect(marlinPort, marlinBaudrate)
 
 if useSimulator:
-    marlin.send('M800 A-5 B-5')
-    marlin.send('M801 A1 B2 R0')
-    marlin.send('M802 A0.5 B0.25 O0')
-    marlin.send('G1 X497 Y255')
+    marlin.send('M800 A0 B0')
+    marlin.send('M801 A0 B0 R0')
+    marlin.send('M802 A0 B0 O0')
+#    marlin.send('G1 X497 Y255')
     marlin.home()
 
 if not marlin.isZProbeTriggered():
