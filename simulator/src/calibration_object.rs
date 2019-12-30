@@ -46,6 +46,7 @@ impl FeelerGauge {
 
         let (mesh, shape) = Probe::get_box_shape(x, y, z, &Transform::from_parts(
             Translation3::new(x / 2.0, 0.0, 0.020),
+            //UnitQuaternion::from_axis_angle(&Vec3::z_axis(), 2.0_f64.to_radians()) * UnitQuaternion::from_axis_angle(&Vec3::y_axis(), 1.0_f64.to_radians())
             UnitQuaternion::identity()
         ));
 

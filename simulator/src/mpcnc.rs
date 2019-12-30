@@ -46,7 +46,9 @@ pub struct MPCNC {
     spindle: SceneNode,
     arm: SceneNode,
     endmill: SceneNode,
+    endmill_tip: SceneNode,
     endmill_collision_shape: ShapeHandle<f64>,
+    endmill_tip_collision_shape: ShapeHandle<f64>,
     endmill_index: usize,
     chain: Chain<Parameter>,
 }
@@ -98,8 +100,14 @@ impl MPCNC {
             Box::new(end_effector_link),
         ]);
 
-        let (endmill_trimesh, endmill_collision_shape) = Probe::get_cylinder_shape(0.004, 0.030, &Transform::from_parts(
-            Translation3::new(0.0, 0.0, 0.030 / 2.0), 
+        let tip_diam   = 0.0002;
+        let tip_length = 0.0005;
+        let (endmill_trimesh, endmill_collision_shape) = Probe::get_cylinder_shape(0.004, 0.030 - tip_length, &Transform::from_parts(
+            Translation3::new(0.0, 0.0, (0.030 - tip_length) / 2.0 + tip_length), 
+            UnitQuaternion::from_axis_angle(&Vec3::x_axis(), 90.0_f64.to_radians())
+        ));
+        let (endmill_tip_trimesh, endmill_tip_collision_shape) = Probe::get_cylinder_shape(tip_diam, tip_length, &Transform::from_parts(
+            Translation3::new(0.0, 0.0, tip_length / 2.0), 
             UnitQuaternion::from_axis_angle(&Vec3::x_axis(), 90.0_f64.to_radians())
         ));
 
@@ -112,7 +120,9 @@ impl MPCNC {
             spindle: window.add_obj(&resources_dir.join("spindle.obj"), resources_dir, mm),
             arm: window.add_obj(&resources_dir.join("arm.obj"), resources_dir, mm),
             endmill: window.add_trimesh(endmill_trimesh, na::Vector3::from_element(1.0_f32)),
+            endmill_tip: window.add_trimesh(endmill_tip_trimesh, na::Vector3::from_element(1.0_f32)),
             endmill_collision_shape: endmill_collision_shape,
+            endmill_tip_collision_shape: endmill_tip_collision_shape,
             endmill_index: 17,
             chain: chain,
         };
@@ -125,6 +135,7 @@ impl MPCNC {
         mpcnc.spindle.set_color(0.0, 1.0, 0.0);
         mpcnc.arm.set_color(0.0, 1.0, 0.0);
         mpcnc.endmill.set_color(1.0, 0.0, 0.0);
+        mpcnc.endmill_tip.set_color(1.0, 0.0, 0.0);
 
         mpcnc
     }
@@ -140,7 +151,8 @@ impl MPCNC {
 
     pub fn get_probe(&self, parameters: &Parameters<Parameter>) -> Probe {
         Probe::new(vec![
-            (self.get_end_effector_pos(parameters), self.endmill_collision_shape.clone())
+            (self.get_end_effector_pos(parameters), self.endmill_collision_shape.clone()),
+            (self.get_end_effector_pos(parameters), self.endmill_tip_collision_shape.clone())
         ])
     }
 
@@ -172,5 +184,6 @@ impl MPCNC {
         self.arm.set_local_transformation(na::convert(start_poses[13]));
         
         self.endmill.set_local_transformation(na::convert(self.get_end_effector_pos(parameters)));
+        self.endmill_tip.set_local_transformation(na::convert(self.get_end_effector_pos(parameters)));
     }
 }
