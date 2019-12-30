@@ -1,4 +1,4 @@
-use crate::chain::{Vec3, Parameters};
+use crate::chain::{Vec3, Parameters, Bounds};
 use crate::mpcnc::{MPCNC, Parameter};
 use crate::calibration_object::CalibrationObject;
 
@@ -42,6 +42,8 @@ impl GCode {
 
             "G28" => self.home(has_x, has_y, has_z, parameters, cnc, calibration_object),
             "G38.2" => self.probe_towards(x, y, z, parameters, cnc, calibration_object),
+            "G38.8" => self.rotate_arm(x, y, z, true, parameters, cnc, calibration_object),
+            "G38.9" => self.rotate_arm(x, y, z, false, parameters, cnc, calibration_object),
             "G92" => self.set_position(x, y, z, parameters),
             "M114" => self.get_position(parameters),
             "M119" => self.endstops(parameters, cnc, calibration_object),
@@ -168,6 +170,39 @@ impl GCode {
         }
 
         self.ok();
+    }
+
+    fn rotate_arm(&self, x: f64, y: f64, z: f64, clockwise: bool, parameters: &mut Parameters<Parameter>, cnc: &MPCNC, calibration_object: &Box<dyn CalibrationObject>) {
+        parameters[Parameter::X] = x + self.origin.x;
+        parameters[Parameter::Y] = y + self.origin.y;
+        parameters[Parameter::Z] = z + self.origin.z;
+        
+        assert!(cnc.get_probe(parameters).is_touching(&calibration_object.get_probe()));
+
+        // back off until the probe is not touching anymore
+        let delta = 0.0001_f64.atan2(0.150) * if clockwise { 1.0 } else { -1.0 };
+        let start_angle = parameters[Parameter::Spindle];
+        for i in 0..100 {
+            parameters[Parameter::Spindle] = Parameter::Spindle.bounded(start_angle - (i as f64) * delta);
+
+            if !cnc.get_probe(parameters).is_touching(&calibration_object.get_probe()) {
+                break;
+            }
+        }
+
+        // rotate until the probe is touching again
+        let delta = 0.000001_f64.atan2(0.150) * if clockwise { 1.0 } else { -1.0 };
+        let start_angle = parameters[Parameter::Spindle];
+        for i in 0..100 {
+            parameters[Parameter::Spindle] = Parameter::Spindle.bounded(start_angle + (i as f64) * delta);
+            
+            if cnc.get_probe(parameters).is_touching(&calibration_object.get_probe()) {
+                self.ok();
+                return;
+            }
+        }
+
+        assert!(false);
     }
 
     fn ok(&self) {

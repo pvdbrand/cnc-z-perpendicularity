@@ -61,65 +61,100 @@ if marlin.isZProbeTriggered():
 
 circle = []
 
-# find the outline of the feeler gauge
-points = \
-    [(dx, -safeDistance) for dx in range(0, int(round(safeDistance)))] + \
-    [(dx, safeDistance) for dx in range(0, int(round(safeDistance)))]
-
-measurements = []
-first = True
-for side in [-1, 1]:
-    for i in range(-2, 2+1):
-        x = side * -i * 2 + 2 * 2
-        y = side * safeDistance
-        
-        if first:
-            marlin.go(x, y, safeHeight, mm_per_second=xySpeed)
-            marlin.go(x, y, probeHeight, mm_per_second=zSpeed)
-            first = False
-            
-        marlin.go(x, y, probeHeight, mm_per_second=xySpeed, wait=True)
-        assert(not marlin.isZProbeTriggered())
+def find_center():
+    global marlin
     
-        x, y, _ = marlin.probe(x, 0, probeHeight, mm_per_second=probeSpeed, towards=True)
-        measurements += [{'x': x, 'y': y, 'ok': marlin.isZProbeTriggered()}]
+    cx, cy, _ = marlin.getPosition()
+    measurements = []
+    first = True
+    for side in [-1, 1]:
+        for i in range(-2, 2+1):
+            x = side * -i * 2 + 2 * 2 + cx
+            y = side * safeDistance + cy
+            
+            if first:
+                marlin.go(x, y, safeHeight, mm_per_second=xySpeed)
+                marlin.go(x, y, probeHeight, mm_per_second=zSpeed)
+                first = False
+                
+            marlin.go(x, y, probeHeight, mm_per_second=xySpeed, wait=True)
+            assert(not marlin.isZProbeTriggered())
+        
+            x, y, _ = marlin.probe(x, cy, probeHeight, mm_per_second=probeSpeed, towards=True)
+            measurements += [{'x': x, 'y': y, 'ok': marlin.isZProbeTriggered()}]
+    
+            marlin.go(x, y, probeHeight, mm_per_second=xySpeed)
+    
+        marlin.go(x, y, safeHeight, mm_per_second=zSpeed)
+    
+    measurements = pd.DataFrame(measurements)
+    
+    centerline = measurements.groupby('x')[['y']].mean().reset_index()
+    centerline['c'] = 1.0
+    
+    model = sm.OLS(centerline.y, centerline[['c', 'x']]).fit()
+    center_y_at_x0 = model.params['c'] + model.params['x'] * 0.0
+    center_y_safe = model.params['c'] + model.params['x'] * -safeDistance
+    
+    marlin.go(cx - safeDistance, center_y_safe, safeHeight, mm_per_second=xySpeed)
+    marlin.go(cx - safeDistance, center_y_safe, probeHeight, mm_per_second=zSpeed, wait=True)
+    assert(not marlin.isZProbeTriggered())
+    
+    x, y, _ = marlin.probe(cx, center_y_at_x0, probeHeight, mm_per_second=probeSpeed, towards=True)
+    x += 1.0
+    y += model.params['x'] * 1.0
+    
+    marlin.go(cx - safeDistance, center_y_safe, probeHeight, mm_per_second=xySpeed)
+    marlin.go(cx - safeDistance, center_y_safe, safeHeight, mm_per_second=zSpeed)
+    marlin.go(x, y, safeHeight, mm_per_second=xySpeed, wait=True)
+    assert(not marlin.isZProbeTriggered())
+    
+    x, y, z = marlin.probe(x, y, probeHeight, mm_per_second=probeSpeed, towards=True)
+    return (x, y, z)
 
-        marlin.go(x, y, probeHeight, mm_per_second=xySpeed)
+approxLen = 150.0
+approxAngle = 180.0
+N = 3
 
-    marlin.go(x, y, safeHeight, mm_per_second=zSpeed)
+x, y, z = find_center()
+circle += [{'x': x, 'y': y, 'z': z, 'angle': approxAngle}]
 
-measurements = pd.DataFrame(measurements)
+for i in range(N):
+       
+    # Now rotate the spindle
+    marlin.go(x, y, safeHeight, mm_per_second=zSpeed, wait=True)
+    assert(not marlin.isZProbeTriggered())
+    
+    marlin.go(x + 6, y - safeDistance, safeHeight, mm_per_second=xySpeed)
+    marlin.go(x + 6, y - safeDistance, probeHeight, mm_per_second=zSpeed, wait=True)
+    assert(not marlin.isZProbeTriggered())
+    
+    if 0:
+        marlin.go(0, -safeDistance, probeHeight, mm_per_second=zSpeed, wait=True)
+        marlin.send('M801 R0')
+        
+    tx, ty, _ = marlin.probe(x + 6, y, probeHeight, mm_per_second=probeSpeed, towards=True)
+    assert(marlin.isZProbeTriggered())
 
-centerline = measurements.groupby('x')[['y']].mean().reset_index()
-centerline['c'] = 1.0
+    sx = approxLen * math.cos(math.radians(approxAngle)) + approxLen
+    sy = approxLen * math.sin(math.radians(approxAngle))
+    
+    for j in range(1, 45 / N + 1):
+        approxAngle -= 1
+        ex = approxLen * math.cos(math.radians(approxAngle)) + approxLen
+        ey = approxLen * math.sin(math.radians(approxAngle))    
+        dx = ex - sx
+        dy = ey - sy
 
-model = sm.OLS(centerline.y, centerline[['c', 'x']]).fit()
-center_y_at_x0 = model.params['c'] + model.params['x'] * 0.0
-center_y_safe = model.params['c'] + model.params['x'] * -safeDistance
+        marlin.rotateArm(tx + dx, ty + dy, probeHeight, clockwise=True, mm_per_second=xySpeed)
+        assert(marlin.isZProbeTriggered())
+        
+    marlin.go(tx + dx, ty + dy - safeDistance, probeHeight, mm_per_second=xySpeed)
+    marlin.go(tx + dx, ty + dy - safeDistance, safeHeight, mm_per_second=zSpeed)
+    marlin.go(tx + dx, ty + dy + 7.0, safeHeight, mm_per_second=xySpeed) # TODO correct for angle
+    
+    x, y, z = find_center()
+    circle += [{'x': x, 'y': y, 'z': z, 'angle': approxAngle}]
 
-marlin.go(-safeDistance, center_y_safe, safeHeight, mm_per_second=xySpeed)
-marlin.go(-safeDistance, center_y_safe, probeHeight, mm_per_second=zSpeed, wait=True)
-assert(not marlin.isZProbeTriggered())
 
-x, y, _ = marlin.probe(0, center_y_at_x0, probeHeight, mm_per_second=probeSpeed, towards=True)
-x += 1.0
-y += model.params['x'] * 1.0
-
-marlin.go(-safeDistance, center_y_safe, probeHeight, mm_per_second=xySpeed)
-marlin.go(-safeDistance, center_y_safe, safeHeight, mm_per_second=zSpeed)
-marlin.go(x, y, safeHeight, mm_per_second=xySpeed, wait=True)
-assert(not marlin.isZProbeTriggered())
-
-x, y, z = marlin.probe(x, y, probeHeight, mm_per_second=probeSpeed, towards=True)
-circle += [{'x': x, 'y': y, 'z': z, 'angle': 0.0}]
-
-marlin.go(x, y, safeHeight, mm_per_second=zSpeed, wait=True)
-assert(not marlin.isZProbeTriggered())
-
-# Now rotate the spindle
-marlin.go(0, -safeDistance, safeHeight, mm_per_second=xySpeed)
-marlin.go(0, -safeDistance, probeHeight, mm_per_second=zSpeed, wait=True)
-assert(not marlin.isZProbeTriggered())
-
-_, _, _ = marlin.probe(0, 0, probeHeight, mm_per_second=probeSpeed, towards=True)
-assert(marlin.isZProbeTriggered())
+circle = pd.DataFrame(circle)

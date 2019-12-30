@@ -54,6 +54,12 @@ class Marlin:
             self.waitUntilStopped()
         return self.getPosition()
 
+    def rotateArm(self, x, y, z, clockwise, mm_per_second=8, wait=False):
+        command = 'G1' if self.simulator is None else ('G38.8' if clockwise else 'G38.9')
+        self.send('%s X%f Y%f Z%f F%f' % (command, x, y, z, mm_per_second * 60))
+        if wait:
+            self.waitUntilStopped()
+
     def enableSteppers(self, x=True, y=True, z=True):
         self.send('M17%s%s%s' % (' X' if x else '', ' Y' if y else '', ' Z' if z else ''))
 
