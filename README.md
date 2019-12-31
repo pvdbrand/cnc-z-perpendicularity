@@ -2,7 +2,7 @@
 
 ## How to use it
 
-Hardware:
+### Hardware
 
 1. Build the arm:
    1. 3D print the [arm](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/arm.stl)
@@ -13,7 +13,7 @@ Hardware:
    1. One wire should be attached to the feeler gauge.
    1. The other wire should be attached to the needle.
 
-CNC Firmware:
+### CNC Firmware
 
 The script only uses gcode to communicate with your CNC router. Any firmware that supports the required gcodes should work. It has only been tested with Marlin so far.
 
@@ -25,7 +25,7 @@ When using Marlin:
    1. Uncomment `#define G38_PROBE_AWAY`
    1. Recompile and upload Marlin to your CNC router
 
-Software:
+### Software
 
 1. For the simulator:
    1. Install [Rust](https://www.rust-lang.org/tools/install)
@@ -34,14 +34,11 @@ Software:
    1. Install Python 2.7, pandas, matplotlib, and statsmodels (you can use [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) to make this easier)
    1. Edit the settings at the top of the script (below the imports) to your needs
 
-Running the script:
+### Running the script
 
-1. Position the end mill directly on top of the bolt at `B` (the Z probe needs to be triggered)
-1. Open [perpendicularity.py](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/perpendicularity.py) in the Spyder IDE and run it. Alternatively, run `python perpendicularity.py` from the command line
-1. Wait a couple of minutes
-1. When prompted, rotate the end mill 180 degrees, and press Enter to continue. (You may need to detach and reattach the Z probe wire)
-1. Wait a bit more
-1. You'll now see the results. If enabled, you can also see backlash and end mill runout estimates.
+1. Put the arm on the collet nut at a 45 degree angle, pointing towards positive X and positive Y
+1. Position the needle on top of the feeler gauge, about 5mm to the right of the tip
+1. Open [feeler_gauge.py](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/feeler_gauge.py) in the Spyder IDE and run it. Alternatively, run `python feeler_gauge.py` from the command line
 
 ## The simulator in action
 
