@@ -5,10 +5,8 @@ import math, sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
-import seaborn as sns
 from scipy.interpolate import interp1d
 from skimage.measure import EllipseModel
-from matplotlib.patches import Ellipse
 import matplotlib
 
 from marlin import Marlin
@@ -18,7 +16,7 @@ useSimulator = True
 simulator = {
     'executable': '/home/peter/github/cnc-z-perpendicularity/simulator/target/debug/simulator',
     'working_directory': '/home/peter/github/cnc-z-perpendicularity/simulator',
-    'fast': False,
+    'fast': True,
 }
 
 marlinPort = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_85531303231351E0E181-if00"
@@ -47,6 +45,7 @@ xOffsets = range(-2, 2+1)
 ###############################################################################
 
 assert(numAngles % 3 == 0)
+assert(numAngles >= 3)
 assert(len(probeDepths) >= 2)
 assert(len(xOffsets) >= 2)
 
@@ -63,9 +62,19 @@ if useSimulator:
     startY = 250 + math.sin(math.radians(approxAngle)) * approxLen
     if 0:
         marlin.send('M800 A0.5  B0.25')
-        marlin.send('M801 A1    B0.5   R0')
-        marlin.send('M802 A0.5  B1     O150')
-        marlin.send('G1 X350')
+        marlin.send('M801 A1    B0.5   R%d' % (approxAngle - 180))
+        marlin.send('M802 A0.5  B1     O%f' % approxLen)
+        marlin.send('G1 X%d Y%d' % (startX, startY))
+    elif 1:
+        marlin.send('M800 A0.05 B0.19')
+        marlin.send('M801 A0.13 B0.23 R%d' % (approxAngle - 180))
+        marlin.send('M802 A0.03 B0.07 O%f' % approxLen)
+        marlin.send('G1 X%d Y%d' % (startX, startY))
+    elif 0:
+        marlin.send('M800 A0 B0')
+        marlin.send('M801 A0 B0 R%d' % (approxAngle - 180))
+        marlin.send('M802 A0.03 B0.07 O%f' % approxLen)
+        marlin.send('G1 X%d Y%d' % (startX, startY))
     else:
         marlin.send('M800 A0 B0')
         marlin.send('M801 A0 B0 R%d' % (approxAngle - 180))
@@ -88,9 +97,10 @@ if marlin.isZProbeTriggered():
     sys.exit(0)
 
 circle = []
+measurements = []
 
 def find_center():
-    global marlin, maxProbeDepth, safeHeight, probeDepths, xOffsets
+    global marlin, maxProbeDepth, safeHeight, probeDepths, xOffsets, approxAngle
     
     cx, cy, cz = marlin.getPosition()
     assert(cz >= safeHeight)
@@ -170,10 +180,12 @@ def find_center():
     
     x, y, z = marlin.probe(x_target, y_target, z_target, mm_per_second=probeSpeed, towards=True)
     measurements = pd.concat([front_back, side], ignore_index=True)
+    measurements['approx_angle'] = approxAngle
     return (x, y, z, measurements)
 
-x, y, z, _ = find_center()
+x, y, z, m = find_center()
 circle += [{'x': x, 'y': y, 'z': z, 'approx_angle': approxAngle}]
+measurements += [m]
 
 for side in [-1, 0, 1]:
     offsetX = -safeDistance if side == 0 else 5
@@ -214,11 +226,13 @@ for side in [-1, 0, 1]:
         marlin.go(tx + dx + offsetX, ty + dy + offsetY, safeHeight, mm_per_second=zSpeed)
         marlin.go(tx + dx + centerX, ty + dy + centerY, safeHeight, mm_per_second=xySpeed) # TODO correct for angle
         
-        x, y, z, _ = find_center()
+        x, y, z, m = find_center()
         circle += [{'x': x, 'y': y, 'z': z, 'approx_angle': approxAngle}]
+        measurements += [m]
 
 
 circle = pd.DataFrame(circle).set_index('approx_angle').sort_index()
+measurements = pd.concat(measurements, ignore_index=True)
 
 plane = circle[['x', 'y', 'z']].copy()
 plane['c'] = 1.0
@@ -226,12 +240,14 @@ plane = sm.OLS(plane['z'], plane[['c', 'x', 'y']]).fit()
 slope_x = plane.params['x']
 slope_y = plane.params['y']
 
-z_plus_spindle_angle_x = math.degrees(math.atan2(plane.params['y'], 1.0))
-z_plus_spindle_angle_y = -math.degrees(math.atan2(plane.params['x'], 1.0))
-print 'Z plus spindle angle X: %8.4f degrees off perpendicular' % z_plus_spindle_angle_x
-print 'Z plus spindle angle Y: %8.4f degrees off perpendicular' % z_plus_spindle_angle_y
+spindle_angle_x = math.degrees(math.atan2(plane.params['y'], 1.0))
+spindle_angle_y = -math.degrees(math.atan2(plane.params['x'], 1.0))
+print 'Spindle angle around X: %8.4f degrees off perpendicular' % spindle_angle_x
+print 'Spindle angle around Y: %8.4f degrees off perpendicular' % spindle_angle_y
 
 if 0:
+    from matplotlib.patches import Ellipse
+    
     ell = EllipseModel()
     ell.estimate(circle[['x', 'y']].values)
     xc, yc, a, b, theta = ell.params
@@ -243,3 +259,47 @@ if 0:
     ax.scatter(xc, yc, color='red', s=100)
     ax.add_patch(matplotlib.patches.Ellipse((xc, yc), 2*a, 2*b, theta*180/math.pi, edgecolor='red', facecolor='none'))
     plt.show()
+
+probe_center_line = {}
+for angle in measurements.approx_angle.unique():
+    x = measurements[(measurements.side != 0) & (measurements.approx_angle == angle)].x.min()
+    front = measurements[(measurements.side == -1) & (measurements.approx_angle == angle) & (measurements.x == x)].set_index('z')['y']
+    back = measurements[(measurements.side == 1) & (measurements.approx_angle == angle) & (measurements.x == x)].set_index('z')['y']
+    probe_center_line[angle] = (front + back) / 2.0
+probe_center_line = pd.DataFrame(probe_center_line)
+
+spindle_center_line = {}
+for angle in [0, 45, 135]:
+    spindle_center_line[angle] = probe_center_line[[angle, angle + 180]].mean(axis=1)
+spindle_center_line = pd.DataFrame(spindle_center_line).reset_index()
+spindle_center_line['c'] = 1.0
+
+# For spindle center line at angle 0: 
+# arm is parallel with the X axis, can determine rotation around X axis
+#
+# delta_y = delta_z * (sin(z) + cos(z) * tan(s))
+# where z = angle of z axis off perpendicular, CCW
+#       s = angle of spindle off perpendicular, CW
+#
+# We also have this relation:
+#   s = spindle_angle_x + z
+#
+# So delta_y = delta_z * (sin(z) + cos(z) * tan(z_plus_spindle_angle_x + z))
+
+# If z = 0:
+#   delta_y = delta_z * (0 + 1 * tan(s))
+#   delta_y / delta_z = tan(s)
+#   tan(s) = delta_y / delta_z
+#   s = atan2(delta_y, delta_z)
+
+model = sm.OLS(spindle_center_line[0], spindle_center_line[['c', 'z']]).fit()
+if 0:
+    print model.summary()
+
+delta_z = 1.0
+delta_y = model.params['z'] * delta_z
+
+z_axis_to_spindle_angle = -math.degrees(math.atan2(delta_y, delta_z))
+
+print 'Z axis angle around X:  %8.4f degrees off perpendicular' % (spindle_angle_x - z_axis_to_spindle_angle)
+print 'Z axis to spindle in X: %8.4f' % z_axis_to_spindle_angle
