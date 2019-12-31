@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import seaborn as sns
 from scipy.interpolate import interp1d
+from skimage.measure import EllipseModel
+from matplotlib.patches import Ellipse
+import matplotlib
 
 from marlin import Marlin
 
@@ -15,7 +18,7 @@ useSimulator = True
 simulator = {
     'executable': '/home/peter/github/cnc-z-perpendicularity/simulator/target/debug/simulator',
     'working_directory': '/home/peter/github/cnc-z-perpendicularity/simulator',
-    'fast': True,
+    'fast': False,
 }
 
 marlinPort = "/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_85531303231351E0E181-if00"
@@ -33,7 +36,19 @@ probeSpeed = 1 # mm/s
 feelerGaugeWidth = 10.0 # mm
 probeWidth = 4.0 # mm
 
+approxLen = 150.0
+approxAngle = 180.0 + 45
+
+numAngles = 6 # should be a multiple of 3
+#probeDepths = range(-maxProbeDepth, 0, 2)
+probeDepths = range(-maxProbeDepth, 0, 4)
+xOffsets = range(-2, 2+1)
+
 ###############################################################################
+
+assert(numAngles % 3 == 0)
+assert(len(probeDepths) >= 2)
+assert(len(xOffsets) >= 2)
 
 pd.set_option('display.max_columns', 10)
 pd.set_option('display.width', 125)
@@ -44,10 +59,18 @@ marlin = Marlin(simulator if useSimulator else None)
 marlin.connect(marlinPort, marlinBaudrate)
 
 if useSimulator:
-    marlin.send('M800 A0.5  B0.25')
-    marlin.send('M801 A1    B0.5   R0')
-    marlin.send('M802 A0.5  B1     O150')
-    marlin.send('G1 X350')
+    startX = 500 + math.cos(math.radians(approxAngle)) * approxLen
+    startY = 250 + math.sin(math.radians(approxAngle)) * approxLen
+    if 0:
+        marlin.send('M800 A0.5  B0.25')
+        marlin.send('M801 A1    B0.5   R0')
+        marlin.send('M802 A0.5  B1     O150')
+        marlin.send('G1 X350')
+    else:
+        marlin.send('M800 A0 B0')
+        marlin.send('M801 A0 B0 R%d' % (approxAngle - 180))
+        marlin.send('M802 A0 B0 O%f' % approxLen)
+        marlin.send('G1 X%d Y%d' % (startX, startY))
     marlin.home()
 
 if not marlin.isZProbeTriggered():
@@ -67,13 +90,10 @@ if marlin.isZProbeTriggered():
 circle = []
 
 def find_center():
-    global marlin, maxProbeDepth, safeHeight
+    global marlin, maxProbeDepth, safeHeight, probeDepths, xOffsets
     
     cx, cy, cz = marlin.getPosition()
     assert(cz >= safeHeight)
-    
-    probeDepths = range(-maxProbeDepth, 0, 2)
-#    probeDepths = [-1]
     
     ########################################
 
@@ -81,7 +101,7 @@ def find_center():
     for side in [-1, 1]:
         y = side * safeDistance + cy
         
-        for i in range(-2, 2+1):
+        for i in xOffsets:
             x = side * -i * 2 + 2 * 2 + cx
             
             _, _, z = marlin.getPosition()
@@ -152,52 +172,53 @@ def find_center():
     measurements = pd.concat([front_back, side], ignore_index=True)
     return (x, y, z, measurements)
 
-approxLen = 150.0
-approxAngle = 180.0
-N = 3
-
 x, y, z, _ = find_center()
 circle += [{'x': x, 'y': y, 'z': z, 'approx_angle': approxAngle}]
 
-for i in range(N):
-       
-    # Now rotate the spindle
-    marlin.go(x, y, safeHeight, mm_per_second=zSpeed, wait=True)
-    assert(not marlin.isZProbeTriggered())
+for side in [-1, 0, 1]:
+    offsetX = -safeDistance if side == 0 else 5
+    offsetY = side * safeDistance
     
-    marlin.go(x, y - safeDistance, safeHeight, mm_per_second=xySpeed)
-    marlin.go(x, y - safeDistance, rotateHeight, mm_per_second=zSpeed, wait=True)
-    assert(not marlin.isZProbeTriggered())
+    centerX = 5 if side == 0 else 0
+    centerY = -side * (feelerGaugeWidth + probeWidth) / 2.0
     
-    if 0:
-        marlin.go(0, -safeDistance, rotateHeight, mm_per_second=zSpeed, wait=True)
-        marlin.send('M801 R0')
+    rotateX = x + offsetX
+    rotateY = y + offsetY
+    
+    for i in range(numAngles / 3):           
+        # Now rotate the spindle
+        marlin.go(x, y, safeHeight, mm_per_second=zSpeed, wait=True)
+        assert(not marlin.isZProbeTriggered())
         
-    tx, ty, _ = marlin.probe(x, y, rotateHeight, mm_per_second=probeSpeed, towards=True)
-    assert(marlin.isZProbeTriggered())
-
-    sx = approxLen * math.cos(math.radians(approxAngle)) + approxLen
-    sy = approxLen * math.sin(math.radians(approxAngle))
-    
-    for j in range(1, 45 / N + 1):
-        approxAngle -= 1
-        ex = approxLen * math.cos(math.radians(approxAngle)) + approxLen
-        ey = approxLen * math.sin(math.radians(approxAngle))    
-        dx = ex - sx
-        dy = ey - sy
-
-        marlin.rotateArm(tx + dx, ty + dy, rotateHeight, clockwise=True, mm_per_second=xySpeed)
+        marlin.go(rotateX, rotateY, safeHeight, mm_per_second=xySpeed)
+        marlin.go(rotateX, rotateY, rotateHeight, mm_per_second=zSpeed, wait=True)
+        assert(not marlin.isZProbeTriggered())
+        
+        tx, ty, _ = marlin.probe(x, y, rotateHeight, mm_per_second=probeSpeed, towards=True)
         assert(marlin.isZProbeTriggered())
-        
-    marlin.go(tx + dx, ty + dy - safeDistance, rotateHeight, mm_per_second=xySpeed)
-    marlin.go(tx + dx, ty + dy - safeDistance, safeHeight, mm_per_second=zSpeed)
-    marlin.go(tx + dx, ty + dy + (feelerGaugeWidth + probeWidth) / 2.0, safeHeight, mm_per_second=xySpeed) # TODO correct for angle
     
-    x, y, z, _ = find_center()
-    circle += [{'x': x, 'y': y, 'z': z, 'approx_angle': approxAngle}]
+        sx = approxLen * math.cos(math.radians(approxAngle)) + approxLen
+        sy = approxLen * math.sin(math.radians(approxAngle))
+        
+        for j in range(90 / (numAngles / 3)):
+            approxAngle = (approxAngle - 1 + 360) % 360
+            ex = approxLen * math.cos(math.radians(approxAngle)) + approxLen
+            ey = approxLen * math.sin(math.radians(approxAngle))    
+            dx = ex - sx
+            dy = ey - sy
+    
+            marlin.rotateArm(tx + dx, ty + dy, rotateHeight, clockwise=True, mm_per_second=xySpeed)
+            assert(marlin.isZProbeTriggered())
+            
+        marlin.go(tx + dx + offsetX, ty + dy + offsetY, rotateHeight, mm_per_second=xySpeed)
+        marlin.go(tx + dx + offsetX, ty + dy + offsetY, safeHeight, mm_per_second=zSpeed)
+        marlin.go(tx + dx + centerX, ty + dy + centerY, safeHeight, mm_per_second=xySpeed) # TODO correct for angle
+        
+        x, y, z, _ = find_center()
+        circle += [{'x': x, 'y': y, 'z': z, 'approx_angle': approxAngle}]
 
 
-circle = pd.DataFrame(circle)
+circle = pd.DataFrame(circle).set_index('approx_angle').sort_index()
 
 plane = circle[['x', 'y', 'z']].copy()
 plane['c'] = 1.0
@@ -207,5 +228,18 @@ slope_y = plane.params['y']
 
 z_plus_spindle_angle_x = math.degrees(math.atan2(plane.params['y'], 1.0))
 z_plus_spindle_angle_y = -math.degrees(math.atan2(plane.params['x'], 1.0))
-print 'Z plus spindle angle X:', z_plus_spindle_angle_x
-print 'Z plus spindle angle Y:', z_plus_spindle_angle_y
+print 'Z plus spindle angle X: %8.4f degrees off perpendicular' % z_plus_spindle_angle_x
+print 'Z plus spindle angle Y: %8.4f degrees off perpendicular' % z_plus_spindle_angle_y
+
+if 0:
+    ell = EllipseModel()
+    ell.estimate(circle[['x', 'y']].values)
+    xc, yc, a, b, theta = ell.params
+    
+    fig = plt.figure()
+    ax = plt.gca()
+    ax.set_aspect('equal')
+    ax.plot(circle.x.values, circle.y.values, '.')
+    ax.scatter(xc, yc, color='red', s=100)
+    ax.add_patch(matplotlib.patches.Ellipse((xc, yc), 2*a, 2*b, theta*180/math.pi, edgecolor='red', facecolor='none'))
+    plt.show()
