@@ -15,6 +15,7 @@ pub trait CalibrationObject {
 pub struct FeelerGauge {
     pos: Transform,
 
+    gauge_holder: SceneNode,
     gauge: SceneNode,
 
     gauge_shape: ShapeHandle<f64>,
@@ -39,23 +40,26 @@ pub struct TwoWires {
 
 impl FeelerGauge {
     #[allow(dead_code)]
-    pub fn new(window: &mut Window, _resources_dir: &Path) -> Box<dyn CalibrationObject> {
-        let x = 0.100;
-        let y = 0.010;
-        let z = 0.080 / 1000.0;
+    pub fn new(window: &mut Window, resources_dir: &Path) -> Box<dyn CalibrationObject> {
+        let mm = na::Vector3::new(0.001, 0.001, 0.001);
+        let x = 89.0 / 1000.0;
+        let y = 13.0 / 1000.0;
+        let z =  0.8 / 1000.0;
 
         let (mesh, shape) = Probe::get_box_shape(x, y, z, &Transform::from_parts(
-            Translation3::new(x / 2.0, 0.0, 0.020),
+            Translation3::new(0.0, 0.0, 0.025),
             //UnitQuaternion::from_axis_angle(&Vec3::z_axis(), 2.0_f64.to_radians()) * UnitQuaternion::from_axis_angle(&Vec3::y_axis(), 1.0_f64.to_radians())
             UnitQuaternion::identity()
         ));
 
         let mut object = FeelerGauge {
-            pos: Transform::translation(0.495, 0.25, 0.0),
+            pos: Transform::translation(0.50, 0.25, 0.0),
+            gauge_holder: window.add_obj(&resources_dir.join("gauge-holder.obj"), resources_dir, mm),
             gauge: window.add_trimesh(mesh, na::Vector3::from_element(1.0_f32)),
             gauge_shape: shape,
         };
 
+        object.gauge_holder.set_color(1.0, 1.0, 0.0);
         object.gauge.set_color(1.0, 0.0, 0.0);
         
         Box::new(object)
@@ -70,6 +74,7 @@ impl CalibrationObject for FeelerGauge {
     }
 
     fn render(&mut self) {
+        self.gauge_holder.set_local_transformation(na::convert(self.pos));
         self.gauge.set_local_transformation(na::convert(self.pos));
     }
 }

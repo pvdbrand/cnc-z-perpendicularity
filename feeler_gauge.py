@@ -31,11 +31,12 @@ zSpeed = 3 # mm/s
 xySpeed = 8 # mm/s
 probeSpeed = 1 # mm/s
 
-feelerGaugeWidth = 10.0 # mm
+feelerGaugeWidth = 13.0 # mm
+feelerGaugeLength = 89.0 # mm
 probeWidth = 4.0 # mm
 
 approxLen = 150.0
-approxAngle = 180.0 + 45
+approxAngle = 180.0
 
 numAngles = 6 # should be a multiple of 3
 #probeDepths = range(-maxProbeDepth, 0, 2)
@@ -58,14 +59,14 @@ marlin = Marlin(simulator if useSimulator else None)
 marlin.connect(marlinPort, marlinBaudrate)
 
 if useSimulator:
-    startX = 500 + math.cos(math.radians(approxAngle)) * approxLen
+    startX = 500 + math.cos(math.radians(approxAngle)) * approxLen - (feelerGaugeLength / 2.0 - 3.0)
     startY = 250 + math.sin(math.radians(approxAngle)) * approxLen
     if 0:
         marlin.send('M800 A0.5  B0.25')
         marlin.send('M801 A1    B0.5   R%d' % (approxAngle - 180))
         marlin.send('M802 A0.5  B1     O%f' % approxLen)
         marlin.send('G1 X%d Y%d' % (startX, startY))
-    elif 1:
+    elif 0:
         marlin.send('M800 A0.05 B0.19')
         marlin.send('M801 A0.13 B0.23 R%d' % (approxAngle - 180))
         marlin.send('M802 A0.03 B0.07 O%f' % approxLen)
@@ -89,8 +90,7 @@ if not marlin.isZProbeTriggered():
 
 marlin.enableSteppers()
 marlin.setPosition(0, 0, 0)
-marlin.go(0, 0, safeHeight, mm_per_second=zSpeed)
-marlin.waitUntilStopped()
+marlin.go(0, 0, safeHeight, mm_per_second=zSpeed, wait=True)
 
 if marlin.isZProbeTriggered():
     print 'Error: Z probe is still triggered after trying to move up. Please check your probe.'
