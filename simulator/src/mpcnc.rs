@@ -31,7 +31,7 @@ impl Bounds<Parameter> for Parameter {
             Parameter::X => new_value.max(0.0).min(1.0),
             Parameter::Y => new_value.max(0.0).min(0.5),
             Parameter::Z => new_value.max(-0.045).min(0.0),
-            Parameter::EndmillOffset => new_value.max(0.0).min(0.150),
+            Parameter::EndmillOffset => new_value.max(0.0).min(0.160),
             _ => (new_value + std::f64::consts::PI * 2.0) % (std::f64::consts::PI * 2.0),
         }
     }
