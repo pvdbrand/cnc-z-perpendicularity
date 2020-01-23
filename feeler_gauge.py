@@ -25,29 +25,29 @@ marlinBaudrate = 250000
 feelerGaugeWidth = 13.0 # mm
 feelerGaugeLength = 89.0 # mm
 feelerGaugeThickness = 0.8 # mm
-probeWidth = 4.0 # mm
+probeWidth = 4.0 if useSimulator else 0.8 # mm
 
 approxLen = 150.0
 approxAngle = 180.0
 
-safeHeight = 10.0  # mm
+safeHeight = 7.5  # mm
 safeDistance = feelerGaugeWidth / 2.0 + probeWidth / 2.0 + 5.0 # mm
 
-zSpeed = 3 # mm/s
-xySpeed = 8 # mm/s
-probeSpeed = 1 # mm/s
+zSpeed = 6 # mm/s
+xySpeed = 10 # mm/s
+probeSpeed = 2 # mm/s
 
 numAngles = 6 # should be a multiple of 3
 
 minProbeDistance = 1
-probeDepths = [-15, -9, -3]
-xOffsets = [5, 10, 15]
+probeDepths = [-14, -9, -4]
+xOffsets = [4, 12] # [5, 10, 15]
 
 minProbeDistanceRough = 5.0
-probeDepthsRough = [-15, -3]
+probeDepthsRough = [-14, -4]
 xOffsetsRough = [4, 12]
 
-tipToCenter = 3.0 # mm
+tipToCenter = 2.5 # mm
 rotateHeight = min(probeDepthsRough)
 
 ###############################################################################
@@ -211,7 +211,7 @@ marlin.go(0, 0, safeHeight, mm_per_second=zSpeed, wait=True)
 assert(not marlin.isZProbeTriggered())
 
 # Move to the right side of the feeler gauge
-distanceBetweenCenters = feelerGaugeLength - 2 * tipToCenter
+distanceBetweenCenters = feelerGaugeLength - 2 * tipToCenter - 2.5 # TODO?
 approxRightCenterX = math.cos(gaugeAngleRadians) * distanceBetweenCenters
 approxRightCenterY = math.sin(gaugeAngleRadians) * distanceBetweenCenters
 marlin.go(approxRightCenterX, approxRightCenterY, safeHeight, mm_per_second=xySpeed, wait=True)
@@ -273,7 +273,7 @@ for (startX, startY), (targetX, targetY), (endX, endY) in rotationPoints:
         dy = ey - sy
 
         marlin.rotateArm(tx + dx, ty + dy, rotateHeight, clockwise=True, mm_per_second=xySpeed)
-        assert(marlin.isZProbeTriggered())
+        #TODO assert(marlin.isZProbeTriggered())
         
     marlin.go(tx + dx + endX, ty + dy + endY, rotateHeight, mm_per_second=xySpeed)
     marlin.go(tx + dx + endX, ty + dy + endY, safeHeight, mm_per_second=zSpeed)
@@ -351,12 +351,12 @@ probe_center_line_left_right = pd.DataFrame(probe_center_line_left_right)
 # TODO we should compensate for feeler gauge thickness here (front and back do not touch at exactly the same height)
 
 spindle_center_line_front_back = {}
-for angle in [0, 45, 90, 135]:
+for angle in [0]: #, 45, 90, 135]:
     spindle_center_line_front_back[angle] = probe_center_line_front_back[[angle, angle + 180]].mean(axis=1)
 spindle_center_line_front_back = pd.DataFrame(spindle_center_line_front_back)
 
 spindle_center_line_left_right = {}
-for angle in [0, 45, 90, 135]:
+for angle in [135]: #[0, 45, 90, 135]:
     spindle_center_line_left_right[angle] = probe_center_line_left_right[[angle, angle + 180]].mean(axis=1)
 spindle_center_line_left_right = pd.DataFrame(spindle_center_line_left_right)
 
