@@ -1,17 +1,28 @@
 # Automatically calibrating a CNC
 
+## What's this?
+
+The repository contains a Python script to automatically determine how perpendicular the Z axis of a CNC machine is, using just a feeler gauge and a touch probe.
+
+This repository also contains a simulator (written in Rust) to make sure that the movements and calculations in the Python script are actually correct.
+
 ## How to use it
 
 ### Hardware
 
 1. Build the arm:
-   1. 3D print the [arm](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/arm.stl)
+   1. 3D print the [arm](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/parts/arm.stl)
    1. Insert a needle in the clamp at the end
-   1. Mount it to the collet nut of your router
-1. Mount a single feeler gauge about 20 mm above your spoilboard.
+   1. Insert an M3 bolt in the hole close to the collet nut hole and connect the needle to this bolt with a piece of wire
+   1. Mount the arm to the collet nut of your router and use another M3 bolt to secure it in place
+1. Build the feeler gauge holder:
+   1. 3D print the [holder](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/parts/gauge_holder.stl)
+   1. Wrap a piece of wire around the middle of feeler gauge
+   1. Put a feeler gauge on top of the holder, put the lid on top, and screw it together with 4 M3 bolts
+   1. Bolt the assembly to your spoil board
 1. Attach the Z probe:
-   1. One wire should be attached to the feeler gauge.
-   1. The other wire should be attached to the needle.
+   1. One wire should be attached to the wire that is connected to the feeler gauge
+   1. The other wire should be attached to the M3 bolt that is connected to the needle
 
 ### CNC Firmware
 
