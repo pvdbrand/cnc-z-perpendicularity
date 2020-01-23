@@ -24,6 +24,7 @@ marlinBaudrate = 250000
 
 feelerGaugeWidth = 13.0 # mm
 feelerGaugeLength = 89.0 # mm
+feelerGaugeThickness = 0.8 # mm
 probeWidth = 4.0 # mm
 
 approxLen = 150.0
@@ -75,9 +76,14 @@ if useSimulator:
         marlin.send('M802 A0.5  B1     O%f' % approxLen)
         marlin.send('G1 X%d Y%d' % (startX, startY))
     elif 1:
-        marlin.send('M800 A0.05 B0.15')
+        marlin.send('M800 A0.05 B0.17')
         marlin.send('M801 A0.13 B0.23 R%d' % (approxAngle - 180))
         marlin.send('M802 A0.03 B0.07 O%f' % approxLen)
+        marlin.send('G1 X%d Y%d' % (startX, startY))
+    elif 0:
+        marlin.send('M800 A0.07 B0')
+        marlin.send('M801 A0.23 B0 R%d' % (approxAngle - 180))
+        marlin.send('M802 A0.00 B0 O%f' % approxLen)
         marlin.send('G1 X%d Y%d' % (startX, startY))
     elif 0:
         marlin.send('M800 A0 B0')
@@ -133,7 +139,8 @@ def find_center(xOffsets, probeDepths, minProbeDistance, leftSide=True):
                 assert(not marlin.isZProbeTriggered())
             
                 _, y, _ = marlin.probe(x, cy, z, mm_per_second=probeSpeed, towards=True)
-                front_back += [{'x': x, 'y': y, 'z': z, 'side': side, 'ok': marlin.isZProbeTriggered()}]
+                sideLabel = 'front' if side < 0 else 'back'
+                front_back += [{'x': x, 'y': y, 'z': z, 'side': sideLabel, 'leftSide': leftSide, 'ok': marlin.isZProbeTriggered()}]
                 y = y + side * minProbeDistance
         
                 marlin.go(x, y, z, mm_per_second=xySpeed)
@@ -166,7 +173,7 @@ def find_center(xOffsets, probeDepths, minProbeDistance, leftSide=True):
         assert(not marlin.isZProbeTriggered())
     
         x, y, _ = marlin.probe(cx, center_y_at_cx, z, mm_per_second=probeSpeed, towards=True)
-        side += [{'x': x, 'y': y, 'z': z, 'side': 0, 'ok': marlin.isZProbeTriggered()}]
+        side += [{'x': x, 'y': y, 'z': z, 'side': 'side', 'leftSide': leftSide, 'ok': marlin.isZProbeTriggered()}]
         x -= minProbeDistance * direction
 
         marlin.go(x, center_y_at_x, z, mm_per_second=xySpeed)
@@ -203,26 +210,22 @@ marlin.setPosition(0, 0, 0)
 marlin.go(0, 0, safeHeight, mm_per_second=zSpeed, wait=True)
 assert(not marlin.isZProbeTriggered())
 
-# Now find the center of the right side
+# Move to the right side of the feeler gauge
 distanceBetweenCenters = feelerGaugeLength - 2 * tipToCenter
 approxRightCenterX = math.cos(gaugeAngleRadians) * distanceBetweenCenters
 approxRightCenterY = math.sin(gaugeAngleRadians) * distanceBetweenCenters
 marlin.go(approxRightCenterX, approxRightCenterY, safeHeight, mm_per_second=xySpeed, wait=True)
 assert(not marlin.isZProbeTriggered())
-marlin.home()
-x, y, _ = marlin.getPosition()
-marlin.go(x, y, safeHeight, mm_per_second=zSpeed, wait=True)
-assert(not marlin.isZProbeTriggered())
-rx, ry, rz, _, _ = find_center(xOffsetsRough, probeDepthsRough, minProbeDistanceRough, leftSide=False)
+
+# Now find the center of the right side
+rdx, rdy, rdz, _, _ = find_center(xOffsetsRough, probeDepthsRough, minProbeDistanceRough, leftSide=False)
 
 # Go back to the left center
-marlin.go(rx, ry, safeHeight, mm_per_second=xySpeed)
+marlin.go(rdx, rdy, safeHeight, mm_per_second=xySpeed)
 marlin.go(0, 0, safeHeight, mm_per_second=xySpeed, wait=True)
 
 x, y, z, firstMeasurements, _ = find_center(xOffsets, probeDepths, minProbeDistance)
-firstX = x
-firstY = y
-firstZ = z
+firstCenterLocation = (x, y, z)
 
 # Now rotate the spindle (TODO coordinates are not corrected for the Z height)
 xoff = (min(xOffsets) + max(xOffsets)) / 2.0
@@ -232,12 +235,13 @@ rotationPoints = [
     [(0 - safeDistance, 0),     (0,    0), (-safeDistance, 0)], # left side
     [(xoff, 0 + safeDistance),  (xoff, 0), (0,  safeDistance)], # back
     [(xoff, 0 + safeDistance),  (xoff, 0), (0,  safeDistance)], # back
-    [(rx + safeDistance, ry),   (rx,  ry), ( safeDistance, 0)], # right side
-    [(rx + safeDistance, ry),   (rx,  ry), ( safeDistance, 0)], # right side
+    [(rdx + safeDistance, rdy), (rdx,  rdy), ( safeDistance, 0)], # right side
+    [(rdx + safeDistance, rdy), (rdx,  rdy), ( safeDistance, 0)], # right side
     [(xoff, 0 - safeDistance),  (xoff, 0), (0, -safeDistance)], # front
 ]
 
-circle = []
+leftCircle = []
+rightCircle = []
 measurements = []
 
 for (startX, startY), (targetX, targetY), (endX, endY) in rotationPoints:
@@ -275,16 +279,30 @@ for (startX, startY), (targetX, targetY), (endX, endY) in rotationPoints:
     marlin.go(tx + dx + endX, ty + dy + endY, safeHeight, mm_per_second=zSpeed)
     marlin.go(tx + dx + (x - tx), ty + dy + (y - ty), safeHeight, mm_per_second=xySpeed) # TODO correct for angle?
     
-    # Find the center again
-    x, y, z, m, _ = find_center(xOffsets, probeDepths, minProbeDistance)
-    circle += [{'x': x, 'y': y, 'z': z, 'approx_angle': approxAngle}]
+    # Find the left center
+    x, y, z, m, _ = find_center(xOffsets, probeDepths, minProbeDistance, leftSide=True)
+    leftCircle += [{'x': x, 'y': y, 'z': z, 'approx_angle': approxAngle}]
     measurements += [m]
 
+    # Move over to the right side
+    marlin.go(x, y, safeHeight, mm_per_second=zSpeed)
+    marlin.go(x + rdx, y + rdy, safeHeight, mm_per_second=xySpeed, wait=True)
+    assert(not marlin.isZProbeTriggered())
+    
+    # Find the right center
+    rx, ry, rz, m, _ = find_center(xOffsets, probeDepths, minProbeDistance, leftSide=False)
+    rightCircle += [{'x': rx, 'y': ry, 'z': rz, 'approx_angle': approxAngle}]
+    measurements += [m]
 
-circle = pd.DataFrame(circle).set_index('approx_angle').sort_index()
+    # Move back to the left side
+    marlin.go(rx, ry, safeHeight, mm_per_second=zSpeed)
+    marlin.go(x, y, safeHeight, mm_per_second=xySpeed)
+
+leftCircle = pd.DataFrame(leftCircle).set_index('approx_angle').sort_index()
+rightCircle = pd.DataFrame(rightCircle).set_index('approx_angle').sort_index()
 measurements = pd.concat(measurements, ignore_index=True)
 
-plane = circle[['x', 'y', 'z']].copy()
+plane = leftCircle[['x', 'y', 'z']].copy()
 plane['c'] = 1.0
 plane = sm.OLS(plane['z'], plane[['c', 'x', 'y']]).fit()
 slope_x = plane.params['x']
@@ -295,34 +313,52 @@ spindle_angle_y = -math.degrees(math.atan2(plane.params['x'], 1.0))
 print 'Spindle angle around X: %8.4f degrees off perpendicular' % spindle_angle_x
 print 'Spindle angle around Y: %8.4f degrees off perpendicular' % spindle_angle_y
 
-if 0:
-    from matplotlib.patches import Ellipse
-    
-    ell = EllipseModel()
-    ell.estimate(circle[['x', 'y']].values)
-    xc, yc, a, b, theta = ell.params
-    
-    fig = plt.figure()
-    ax = plt.gca()
-    ax.set_aspect('equal')
-    ax.plot(circle.x.values, circle.y.values, '.')
-    ax.scatter(xc, yc, color='red', s=100)
-    ax.add_patch(matplotlib.patches.Ellipse((xc, yc), 2*a, 2*b, theta*180/math.pi, edgecolor='red', facecolor='none'))
-    plt.show()
+#if 0:
+#    from matplotlib.patches import Ellipse
+#    
+#    ell = EllipseModel()
+#    ell.estimate(circle[['x', 'y']].values)
+#    xc, yc, a, b, theta = ell.params
+#    
+#    fig = plt.figure()
+#    ax = plt.gca()
+#    ax.set_aspect('equal')
+#    ax.plot(circle.x.values, circle.y.values, '.')
+#    ax.scatter(xc, yc, color='red', s=100)
+#    ax.add_patch(matplotlib.patches.Ellipse((xc, yc), 2*a, 2*b, theta*180/math.pi, edgecolor='red', facecolor='none'))
+#    plt.show()
 
-probe_center_line = {}
-for angle in measurements.approx_angle.unique():
-    x = measurements[(measurements.side != 0) & (measurements.approx_angle == angle)].x.min()
-    front = measurements[(measurements.side == -1) & (measurements.approx_angle == angle) & (measurements.x == x)].set_index('z')['y']
-    back = measurements[(measurements.side == 1) & (measurements.approx_angle == angle) & (measurements.x == x)].set_index('z')['y']
-    probe_center_line[angle] = (front + back) / 2.0
-probe_center_line = pd.DataFrame(probe_center_line)
+probe_center_line_front_back = {}
+df = measurements[measurements.leftSide == True]
+for angle in df.approx_angle.unique():
+    x = df[(df.side != 'side') & (df.approx_angle == angle)].x.min()
+    d = df[(df.approx_angle == angle) & (df.x == x)]
+    front = d[d.side == 'front'].set_index('z')['y']
+    back = d[d.side == 'back'].set_index('z')['y']
+    probe_center_line_front_back[angle] = (front + back) / 2.0
+probe_center_line_front_back = pd.DataFrame(probe_center_line_front_back)
 
-spindle_center_line = {}
+probe_center_line_left_right = {}
+df = measurements[measurements.side == 'side']
+for angle in df.approx_angle.unique():
+    d = df[(df.approx_angle == angle)]
+    left = d[d.leftSide == True].set_index('z')['x']
+    right = d[d.leftSide == False].set_index('z')['x']
+    probe_center_line_left_right[angle] = (left + right) / 2.0
+probe_center_line_left_right = pd.DataFrame(probe_center_line_left_right)
+
+
+# TODO we should compensate for feeler gauge thickness here (front and back do not touch at exactly the same height)
+
+spindle_center_line_front_back = {}
 for angle in [0, 45, 90, 135]:
-    spindle_center_line[angle] = probe_center_line[[angle, angle + 180]].mean(axis=1)
-#spindle_center_line = pd.DataFrame(spindle_center_line).reset_index()
-#spindle_center_line['c'] = 1.0
+    spindle_center_line_front_back[angle] = probe_center_line_front_back[[angle, angle + 180]].mean(axis=1)
+spindle_center_line_front_back = pd.DataFrame(spindle_center_line_front_back)
+
+spindle_center_line_left_right = {}
+for angle in [0, 45, 90, 135]:
+    spindle_center_line_left_right[angle] = probe_center_line_left_right[[angle, angle + 180]].mean(axis=1)
+spindle_center_line_left_right = pd.DataFrame(spindle_center_line_left_right)
 
 # For spindle center line at angle 0: 
 # arm is parallel with the X axis, can determine rotation around X axis
@@ -342,35 +378,31 @@ for angle in [0, 45, 90, 135]:
 #   tan(s) = delta_y / delta_z
 #   s = atan2(delta_y, delta_z)
 
-def objective(beta, spindle_angle_x, delta):
-    z = -beta[0]
-    e = delta['z'] * (math.sin(z) + math.cos(z) * math.tan(math.radians(spindle_angle_x))) - delta['y']
+def objective(beta, spindle_angle, delta):
+    z = beta[0]
+    e = delta['z'] * (math.sin(z) + math.cos(z) * math.tan(math.radians(spindle_angle))) - delta['y']
     return (e ** 2).sum()
     
 from scipy.optimize import minimize
 
-data = spindle_center_line[0].reset_index().rename(columns={0:'y'})
-delta = (data - data.shift(1)).iloc[1:]
+data = spindle_center_line_front_back[0].reset_index().rename(columns={0:'y'})
+delta = (data - data.iloc[0]).iloc[1:]
+delta['y'] = -delta['y']
 
 init = [0.0]
-result = minimize(objective, init, (spindle_angle_x, delta), method='powell', tol=0, options={'maxiter': 1000, 'disp':True})
-z_axis_to_spindle_angle_x = -math.degrees(result.x)
-print z_axis_to_spindle_angle_x
+result = minimize(objective, init, (spindle_angle_x, delta), method='powell', tol=0, options={'maxiter': 1000, 'disp':False})
+z_axis_angle_x = -math.degrees(result.x)
 
-model = sm.OLS(spindle_center_line[0], spindle_center_line[['c', 'z']]).fit()
-if 0:
-    print model.summary()
+data = spindle_center_line_left_right[0].reset_index().rename(columns={0:'y'})
+delta = (data - data.iloc[0]).iloc[1:]
+#delta['y'] = -delta['y']
 
-z_axis_to_spindle_angle_x = -math.degrees(math.atan2(model.params['z'], 1.0))
+init = [0.0]
+result = minimize(objective, init, (spindle_angle_y, delta), method='powell', tol=0, options={'maxiter': 1000, 'disp':False})
+z_axis_angle_y = -math.degrees(result.x)
 
-print 'Z axis angle around X:  %8.4f degrees off perpendicular' % (spindle_angle_x - z_axis_to_spindle_angle_x)
-print 'Z axis to spindle in X: %8.4f' % z_axis_to_spindle_angle_x
+print 'Z axis angle around X:  %8.4f degrees off perpendicular' % (z_axis_angle_x)
+print 'Z axis to spindle in X: %8.4f' % (spindle_angle_x - z_axis_angle_x)
 
-model = sm.OLS(spindle_center_line[90], spindle_center_line[['c', 'z']]).fit()
-if 0:
-    print model.summary()
-
-z_axis_to_spindle_angle_y = -math.degrees(math.atan2(model.params['z'], 1.0))
-
-print 'Z axis angle around Y:  %8.4f degrees off perpendicular' % (spindle_angle_y - z_axis_to_spindle_angle_y)
-print 'Z axis to spindle in Y: %8.4f' % z_axis_to_spindle_angle_y
+print 'Z axis angle around Y:  %8.4f degrees off perpendicular' % (z_axis_angle_y)
+print 'Z axis to spindle in Y: %8.4f' % (spindle_angle_y - z_axis_angle_y)
