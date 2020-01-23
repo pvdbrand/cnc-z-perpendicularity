@@ -57,12 +57,12 @@ When using Marlin:
 1. While the script is running, keep an eye on your machine to make sure it's not doing anything weird. The full script will take up to half an hour.
 1. When it's done, it will print something like this:
 
-> Spindle angle around X:  -0.1563 degrees off perpendicular
-> Spindle angle around Y:   0.2554 degrees off perpendicular
-> Z axis angle around X:    0.3192 degrees off perpendicular
-> Z axis to spindle in X:  -0.4756
-> Z axis angle around Y:    0.1866 degrees off perpendicular
-> Z axis to spindle in Y:   0.0688
+`Spindle angle around X:  -0.1563 degrees off perpendicular
+Spindle angle around Y:   0.2554 degrees off perpendicular
+Z axis angle around X:    0.3192 degrees off perpendicular
+Z axis to spindle in X:  -0.4756
+Z axis angle around Y:    0.1866 degrees off perpendicular
+Z axis to spindle in Y:   0.0688`
 
 "Spindle angle around X/Y" means the angle between the XY plane and the tip of the end mill. If this is zero, surfacing your spoilboard would make it perfectly flat. If it's nonzero, you would get tiny ridges.
 
