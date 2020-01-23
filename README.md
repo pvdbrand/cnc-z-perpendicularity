@@ -12,7 +12,7 @@ This repository also contains a simulator (written in Rust) to make sure that th
 
 1. Build the arm:
    1. 3D print the [arm](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/parts/arm.stl)
-   1. Insert a needle in the clamp at the end
+   1. Insert a needle in the clamp at the end, make sure it sticks out around 20-25mm below the arm
    1. Insert an M3 bolt in the hole close to the collet nut hole and connect the needle to this bolt with a piece of wire
    1. Mount the arm to the collet nut of your router and use another M3 bolt to secure it in place
 1. Build the feeler gauge holder:
@@ -23,6 +23,9 @@ This repository also contains a simulator (written in Rust) to make sure that th
 1. Attach the Z probe:
    1. One wire should be attached to the wire that is connected to the feeler gauge
    1. The other wire should be attached to the M3 bolt that is connected to the needle
+
+This is how it looks when everything is assembled:
+![hardware setup](https://github.com/pvdbrand/cnc-z-perpendicularity/blob/master/images/hardware_setup.jpg)
 
 ### CNC Firmware
 
