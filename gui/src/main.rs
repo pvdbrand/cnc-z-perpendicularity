@@ -30,7 +30,11 @@ struct Connection {
 fn list_ports() -> Json<Result<Vec<AvailableSerialPort>, String>> {
     match serialport::available_ports() {
         Err(e) => Json(Err(e.description)),
-        Ok(ports) => Json(Ok(ports.iter().map(|port| AvailableSerialPort { name: port.port_name.clone() }).collect())),
+        //Ok(ports) => Json(Ok(ports.iter().map(|port| AvailableSerialPort { name: port.port_name.clone() }).collect())),
+        Ok(ports) => Json(Ok(vec![
+                AvailableSerialPort { name: "B".to_string() },
+                AvailableSerialPort { name: "C".to_string() },
+            ])),//ports.iter().map(|port| AvailableSerialPort { name: port.port_name.clone() }).collect())),
     }
 }
 
